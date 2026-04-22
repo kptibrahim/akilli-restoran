@@ -33,12 +33,17 @@ export default function GarsonCagriPanel({ restoranId }: { restoranId: string })
       .channel(`garson-panel-${restoranId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "GarsonCagri", filter: `restoranId=eq.${restoranId}` },
+        { event: "*", schema: "public", table: "GarsonCagri" },
         () => yukle()
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(kanal); };
+    const poller = setInterval(yukle, 4000);
+
+    return () => {
+      supabase.removeChannel(kanal);
+      clearInterval(poller);
+    };
   }, [restoranId]);
 
   async function onayla(id: string) {

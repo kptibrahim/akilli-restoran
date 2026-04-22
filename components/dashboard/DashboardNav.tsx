@@ -120,9 +120,13 @@ export default function DashboardNav({
     }
     yukle();
     const kanal = supabase.channel(`nav-garson-${restoranId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "GarsonCagri", filter: `restoranId=eq.${restoranId}` }, () => yukle())
+      .on("postgres_changes", { event: "*", schema: "public", table: "GarsonCagri" }, () => yukle())
       .subscribe();
-    return () => { supabase.removeChannel(kanal); };
+    const poller = setInterval(yukle, 4000);
+    return () => {
+      supabase.removeChannel(kanal);
+      clearInterval(poller);
+    };
   }, [restoranId]);
 
   async function onayla(id: string) {
@@ -151,27 +155,35 @@ export default function DashboardNav({
       <aside className="dash-sidebar">
 
         {/* Logo */}
-        <div className="flex items-center gap-3 px-5 pt-6 pb-5" style={{ borderBottom: "1px solid var(--ast-divider)" }}>
-          {/* A İkonu */}
-          <div className="shrink-0 relative" style={{ width: 34, height: 34 }}>
-            <svg viewBox="0 0 34 34" fill="none" style={{ width: 34, height: 34 }}>
-              <rect x="17" y="1.5" width="21" height="21" rx="3" transform="rotate(45 17 17)" fill="url(#logoGrad)" />
-              <path d="M12 24L17 11L22 24" stroke={isLight ? "#FFFFFF" : "#0A0705"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M13.5 20h7" stroke={isLight ? "#FFFFFF" : "#0A0705"} strokeWidth="2" strokeLinecap="round" />
-              <defs>
-                <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#C89434" />
-                  <stop offset="100%" stopColor="#E8B84B" />
-                </linearGradient>
-              </defs>
-            </svg>
+        <div
+          className="flex items-center gap-3 px-5 pt-6 pb-5"
+          style={{
+            borderBottom: "1px solid var(--ast-divider)",
+            background: "linear-gradient(180deg, rgba(200,148,52,0.06) 0%, transparent 100%)",
+          }}
+        >
+          <div className="shrink-0 relative" style={{ width: 36, height: 36 }}>
+            <div
+              style={{
+                width: 36, height: 36,
+                background: "linear-gradient(135deg, #C89434 0%, #E8B84B 50%, #C8832A 100%)",
+                borderRadius: 10,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(200,148,52,0.35)",
+              }}
+            >
+              <span style={{ fontSize: 18, fontWeight: 900, color: "#0A0705", fontFamily: "inherit", lineHeight: 1 }}>G</span>
+            </div>
           </div>
           <div>
-            <p className="font-black text-sm leading-tight" style={{ color: "var(--ast-text1)", letterSpacing: "0.05em" }}>
-              MENU <span style={{ color: "var(--ast-gold)" }}>AI</span>
+            <p
+              className="font-black text-sm leading-tight"
+              style={{ color: "var(--ast-text1)", letterSpacing: "0.08em", fontFamily: "inherit" }}
+            >
+              GASTRONOM <span style={{ color: "var(--ast-gold)" }}>AI</span>
             </p>
-            <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--ast-text3)", letterSpacing: "0.12em" }}>
-              by GASTRONOM
+            <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--ast-text3)", letterSpacing: "0.15em" }}>
+              PANEL
             </p>
           </div>
         </div>
@@ -304,21 +316,23 @@ export default function DashboardNav({
       <header className="dash-mobile sticky top-0 z-20" style={{ background: "var(--ast-sidebar-bg)", borderBottom: "1px solid var(--ast-divider)" }}>
         <div className="flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-2.5">
-            <div className="shrink-0" style={{ width: 28, height: 28 }}>
-              <svg viewBox="0 0 34 34" fill="none" style={{ width: 28, height: 28 }}>
-                <rect x="17" y="1.5" width="21" height="21" rx="3" transform="rotate(45 17 17)" fill="url(#mLogoGrad)" />
-                <path d="M12 24L17 11L22 24" stroke={isLight ? "#FFFFFF" : "#0A0705"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M13.5 20h7" stroke={isLight ? "#FFFFFF" : "#0A0705"} strokeWidth="2" strokeLinecap="round" />
-                <defs>
-                  <linearGradient id="mLogoGrad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#C89434" />
-                    <stop offset="100%" stopColor="#E8B84B" />
-                  </linearGradient>
-                </defs>
-              </svg>
+            <div
+              style={{
+                width: 30, height: 30,
+                background: "linear-gradient(135deg, #C89434, #E8B84B)",
+                borderRadius: 8,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 2px 10px rgba(200,148,52,0.3)",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 15, fontWeight: 900, color: "#0A0705", fontFamily: "inherit", lineHeight: 1 }}>G</span>
             </div>
             <div>
-              <p className="font-black text-sm leading-none" style={{ color: "var(--ast-text1)" }}>
+              <p
+                className="font-black text-sm leading-none"
+                style={{ color: "var(--ast-text1)", fontFamily: "inherit", letterSpacing: "0.06em" }}
+              >
                 GASTRONOM <span style={{ color: "var(--ast-gold)" }}>AI</span>
               </p>
               {restoran && <p className="text-[10px] leading-none mt-0.5" style={{ color: "var(--ast-text3)" }}>{restoran.isim}</p>}
