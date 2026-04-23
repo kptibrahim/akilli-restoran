@@ -249,14 +249,14 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-lg" style={{ paddingBottom: 100 }}>
+    <div className="p-6 md:p-10 max-w-5xl" style={{ paddingBottom: 100 }}>
       <div className="mb-7">
         <h1 className="text-2xl font-black" style={{ color: "var(--ast-text1)" }}>Ayarlar & QR</h1>
         <p className="text-sm mt-0.5" style={{ color: "var(--ast-text2)" }}>Restoran bilgileri ve QR kod</p>
       </div>
 
       {/* Restoran Bilgisi */}
-      <div className="p-5 mb-4" style={cardStyle}>
+      <div className="p-5 mb-6" style={cardStyle}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
             <span style={{ color: "var(--ast-gold)" }}>◈</span> Restoran Bilgisi
@@ -414,8 +414,10 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
         )}
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
       {/* WiFi Bilgileri */}
-      <div className="p-5 mb-4" style={cardStyle}>
+      <div className="p-5" style={cardStyle}>
         <h2 className="font-bold mb-1 flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
           <span style={{ color: "var(--ast-gold)" }}>📶</span> Wi-Fi Bilgileri
         </h2>
@@ -452,7 +454,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
       </div>
 
       {/* Personel PIN Kodları */}
-      <div className="p-5 mb-4" style={cardStyle}>
+      <div className="p-5" style={cardStyle}>
         <h2 className="font-bold mb-1 flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
           <span style={{ color: "var(--ast-gold)" }}>🔐</span> Personel PIN Kodları
         </h2>
@@ -540,7 +542,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
       </div>
 
       {/* Giriş Şifresi */}
-      <div className="p-5 mb-4" style={cardStyle}>
+      <div className="p-5" style={cardStyle}>
         <h2 className="font-bold mb-1 flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
           <span style={{ color: "var(--ast-gold)" }}>🔑</span> Giriş Şifresi
         </h2>
@@ -572,7 +574,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
       </div>
 
       {/* Dil Ayarları */}
-      <div className="p-5 mb-4" style={cardStyle}>
+      <div className="p-5" style={cardStyle}>
         <h2 className="font-bold mb-1 flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
           <span style={{ color: "var(--ast-gold)" }}>🌐</span> Menü Dilleri
         </h2>
@@ -602,7 +604,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
       </div>
 
       {/* Menü Linki */}
-      <div className="p-5 mb-4" style={cardStyle}>
+      <div className="p-5" style={cardStyle}>
         <h2 className="font-bold mb-3 flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
           <span style={{ color: "var(--ast-gold)" }}>🔗</span> Müşteri Menü Linki
         </h2>
@@ -615,11 +617,6 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
           style={{ border: "1px solid var(--ast-gold)", color: "var(--ast-gold)", background: "var(--ast-icon-bg)" }}>
           🚀 Menüyü Aç
         </a>
-      </div>
-
-      {/* PDF Yükle */}
-      <div className="mb-4">
-        <MenuGorselImport restoranId={restoran.id} />
       </div>
 
       {/* QR Kod */}
@@ -635,6 +632,13 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
           style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
           📱 QR Kodlarımı Yönet
         </a>
+      </div>
+
+      </div>
+
+      {/* PDF Yükle */}
+      <div className="mt-4">
+        <MenuGorselImport restoranId={restoran.id} />
       </div>
     </div>
   );
