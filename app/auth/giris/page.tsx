@@ -153,12 +153,17 @@ export default async function GirisPage({
           </form>
         </div>
 
-        <p className="text-center text-sm mt-5" style={{ color: "rgba(245,230,200,0.35)" }}>
-          Hesabınız yok mu?{" "}
-          <a href="/auth/kayit" className="font-semibold" style={{ color: "#C89434" }}>
-            Kayıt olun
+        <div className="flex flex-col items-center gap-2 mt-5">
+          <p className="text-center text-sm" style={{ color: "rgba(245,230,200,0.35)" }}>
+            Hesabınız yok mu?{" "}
+            <a href="/auth/kayit" className="font-semibold" style={{ color: "#C89434" }}>
+              Kayıt olun
+            </a>
+          </p>
+          <a href="/auth/sifre-sifirla" className="text-xs font-medium" style={{ color: "rgba(245,230,200,0.4)" }}>
+            Şifremi Unuttum
           </a>
-        </p>
+        </div>
       </div>
 
       <p className="text-xs mt-10 tracking-[0.3em] relative z-10" style={{ color: "rgba(245,230,200,0.15)" }}>

@@ -117,6 +117,26 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
     }
   }
 
+  const [sifreGonderiyor, setSifreGonderiyor] = useState(false);
+  const [sifreGonderildi, setSifreGonderildi] = useState(false);
+  const [sifreGonderHata, setSifreGonderHata] = useState("");
+
+  async function sifreDegistirTalep() {
+    setSifreGonderHata("");
+    setSifreGonderiyor(true);
+    try {
+      const res = await fetch("/api/restoran/sifre-degistir", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setSifreGonderHata(json.error ?? "Bir hata oluştu."); return; }
+      setSifreGonderildi(true);
+      setTimeout(() => setSifreGonderildi(false), 8000);
+    } catch {
+      setSifreGonderHata("Bağlantı hatası.");
+    } finally {
+      setSifreGonderiyor(false);
+    }
+  }
+
   const [duzenle, setDuzenle] = useState(false);
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [logoYukleniyor, setLogoYukleniyor] = useState(false);
@@ -495,6 +515,38 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
         >
           {pinKaydediliyor ? "Kaydediliyor..." : "PIN Kodlarını Kaydet"}
         </button>
+      </div>
+
+      {/* Giriş Şifresi */}
+      <div className="p-5 mb-4" style={cardStyle}>
+        <h2 className="font-bold mb-1 flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
+          <span style={{ color: "var(--ast-gold)" }}>🔑</span> Giriş Şifresi
+        </h2>
+        <p className="text-xs mb-4" style={{ color: "var(--ast-text2)" }}>
+          Panele giriş şifrenizi değiştirmek için onay maili gönderilir. Linke tıklayarak yeni şifre belirlersiniz.
+        </p>
+        {sifreGonderildi ? (
+          <p className="text-xs p-2.5 rounded-xl"
+            style={{ background: "var(--ast-success-bg)", border: "1px solid var(--ast-success-border)", color: "var(--ast-success-text)" }}>
+            ✓ Şifre değiştirme bağlantısı emailinize gönderildi. 30 dakika geçerlidir.
+          </p>
+        ) : (
+          <>
+            {sifreGonderHata && (
+              <p className="text-xs mb-3 p-2.5 rounded-xl"
+                style={{ background: "var(--ast-error-bg)", border: "1px solid var(--ast-error-border)", color: "var(--ast-error-text)" }}>
+                {sifreGonderHata}
+              </p>
+            )}
+            <button
+              onClick={sifreDegistirTalep}
+              disabled={sifreGonderiyor}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
+              style={{ border: "1px solid var(--ast-gold)", color: "var(--ast-gold)", background: "var(--ast-icon-bg)" }}>
+              {sifreGonderiyor ? "Gönderiliyor..." : "Şifre Değiştirme Bağlantısı Gönder"}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Dil Ayarları */}
