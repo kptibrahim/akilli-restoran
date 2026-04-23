@@ -28,11 +28,17 @@ function varsayilanSayfa(rol: Rol): string {
 function PinNumpad({
   onTamamla,
   onIptal,
+  onPinSifirla,
   yanlis,
+  sifirlaYukleniyor,
+  sifirlaBasarili,
 }: {
   onTamamla: (pin: string) => void;
   onIptal: () => void;
+  onPinSifirla: () => void;
   yanlis: boolean;
+  sifirlaYukleniyor: boolean;
+  sifirlaBasarili: boolean;
 }) {
   const [pin, setPin] = useState("");
 
@@ -112,6 +118,22 @@ function PinNumpad({
           ⌫
         </button>
       </div>
+
+      {/* PIN unutuldu */}
+      {sifirlaBasarili ? (
+        <p className="text-xs font-semibold text-center" style={{ color: "var(--ast-success-text)" }}>
+          ✓ Yeni PIN emailinize gönderildi
+        </p>
+      ) : (
+        <button
+          onClick={onPinSifirla}
+          disabled={sifirlaYukleniyor}
+          className="text-xs underline underline-offset-2 disabled:opacity-50 transition-opacity"
+          style={{ color: "var(--ast-text3)" }}
+        >
+          {sifirlaYukleniyor ? "Gönderiliyor..." : "PIN'i unuttum"}
+        </button>
+      )}
     </div>
   );
 }
@@ -119,11 +141,13 @@ function PinNumpad({
 // ── Rol Seçim Ekranı ────────────────────────────────────────────────────────
 
 function RolSecimEkrani({
+  restoranId,
   pinYonetici,
   pinKasiyer,
   pinMutfak,
   onRolSec,
 }: {
+  restoranId: string;
   pinYonetici: string | null;
   pinKasiyer: string | null;
   pinMutfak: string | null;
@@ -132,11 +156,29 @@ function RolSecimEkrani({
   const [adim, setAdim] = useState<"secim" | "pin">("secim");
   const [secilenRol, setSecilenRol] = useState<Rol | null>(null);
   const [yanlis, setYanlis] = useState(false);
+  const [sifirlaYukleniyor, setSifirlaYukleniyor] = useState(false);
+  const [sifirlaBasarili, setSifirlaBasarili] = useState(false);
 
   function rolTus(rol: Rol) {
     setSecilenRol(rol);
     setYanlis(false);
+    setSifirlaBasarili(false);
     setAdim("pin");
+  }
+
+  async function pinSifirla() {
+    if (!secilenRol) return;
+    setSifirlaYukleniyor(true);
+    try {
+      await fetch("/api/restoran/pin-sifirla", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restoranId, rol: secilenRol }),
+      });
+      setSifirlaBasarili(true);
+    } finally {
+      setSifirlaYukleniyor(false);
+    }
   }
 
   const pinDogrula = useCallback(
@@ -256,8 +298,11 @@ function RolSecimEkrani({
         ) : (
           <PinNumpad
             onTamamla={pinDogrula}
-            onIptal={() => { setAdim("secim"); setYanlis(false); }}
+            onIptal={() => { setAdim("secim"); setYanlis(false); setSifirlaBasarili(false); }}
+            onPinSifirla={pinSifirla}
             yanlis={yanlis}
+            sifirlaYukleniyor={sifirlaYukleniyor}
+            sifirlaBasarili={sifirlaBasarili}
           />
         )}
       </div>
@@ -327,6 +372,7 @@ export default function DashboardShell({
   if (!rol) {
     return (
       <RolSecimEkrani
+        restoranId={restoran?.id ?? ""}
         pinYonetici={pinYonetici}
         pinKasiyer={pinKasiyer}
         pinMutfak={pinMutfak}
