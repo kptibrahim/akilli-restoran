@@ -10,11 +10,15 @@ export default async function AyarlarPage() {
 
   const { data: restoran } = await supabase
     .from("Restoran")
-    .select("id, isim, slug, renk, logo, aciklama, sosyalMedya, selectedLanguages, wifiAdi, wifiSifre, pin_kasiyer, pin_mutfak")
+    .select("id, isim, slug, renk, logo, aciklama, sosyalMedya, selectedLanguages, wifiAdi, wifiSifre")
     .eq("userId", user.id)
     .single();
 
   if (!restoran) redirect("/dashboard");
 
-  return <AyarlarClient restoran={restoran} />;
+  const restoranVeri = restoran
+    ? { ...restoran, pin_kasiyer: null as string | null, pin_mutfak: null as string | null }
+    : null;
+
+  return <AyarlarClient restoran={restoranVeri} />;
 }

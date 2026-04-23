@@ -56,7 +56,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: restoran } = await supabase
     .from("Restoran")
-    .select("id, isim, slug, renk, logo, pin_kasiyer, pin_mutfak")
+    .select("id, isim, slug, renk, logo")
     .eq("userId", user.id)
     .single();
 
@@ -67,8 +67,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <DashboardShell
         userEmail={user.email ?? ""}
         restoran={restoran ? { id: restoran.id, isim: restoran.isim, slug: restoran.slug, renk: restoran.renk, logo: restoran.logo } : null}
-        pinKasiyer={(restoran as { pin_kasiyer?: string | null } | null)?.pin_kasiyer ?? null}
-        pinMutfak={(restoran as { pin_mutfak?: string | null } | null)?.pin_mutfak ?? null}
+        pinKasiyer={null}
+        pinMutfak={null}
       >
         {children}
       </DashboardShell>
