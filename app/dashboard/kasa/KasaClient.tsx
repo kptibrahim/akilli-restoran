@@ -287,6 +287,13 @@ export default function KasaClient() {
           g.birlesikUrunler.some((u) => u.isim.toLowerCase().includes(aramaTemiz))
       )
     : gruplar;
+  const filtreliArsiv = aramaTemiz
+    ? arsiv.filter(
+        (k) =>
+          k.masaNo.toLowerCase().includes(aramaTemiz) ||
+          k.urunler.some((u) => u.isim.toLowerCase().includes(aramaTemiz))
+      )
+    : [];
 
   const bekleyenToplam = gruplar.reduce((a, g) => a + g.toplamTutar, 0);
   const arsivCiro = arsiv.reduce((a, k) => a + k.toplam, 0);
@@ -353,18 +360,19 @@ export default function KasaClient() {
       </div>
 
       {/* İçerik */}
-      {gruplar.length === 0 ? (
+      {gruplar.length === 0 && !aramaTemiz ? (
         <div className="text-center mt-24">
           <div className="text-6xl mb-4">💰</div>
           <p className="font-medium" style={{ color: "var(--ast-text2)" }}>Kasada bekleyen masa yok</p>
           <p className="text-sm mt-1" style={{ color: "var(--ast-text3)" }}>Teslim edilen siparişler burada görünür</p>
         </div>
-      ) : filtreliGruplar.length === 0 ? (
+      ) : filtreliGruplar.length === 0 && filtreliArsiv.length === 0 ? (
         <div className="text-center mt-16">
           <p className="text-3xl mb-3">🔍</p>
-          <p className="text-sm" style={{ color: "var(--ast-text2)" }}>&quot;{arama}&quot; ile eşleşen masa yok</p>
+          <p className="text-sm" style={{ color: "var(--ast-text2)" }}>&quot;{arama}&quot; ile eşleşen sonuç yok</p>
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtreliGruplar.map((g) => (
             <div key={g.masaNo} className="rounded-2xl overflow-hidden"
@@ -423,6 +431,51 @@ export default function KasaClient() {
             </div>
           ))}
         </div>
+
+        {/* Arşiv arama sonuçları */}
+        {filtreliArsiv.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-4">
+              <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--ast-gold)" strokeWidth={2}>
+                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+              </svg>
+              <span className="text-xs font-bold" style={{ color: "var(--ast-text3)" }}>
+                Günlük Arşivde {filtreliArsiv.length} sonuç
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[...filtreliArsiv].reverse().map((k, i) => (
+                <div key={k.id + i} className="rounded-2xl overflow-hidden"
+                  style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", opacity: 0.8 }}>
+                  <div className="flex items-center justify-between px-4 py-3"
+                    style={{ borderBottom: "1px solid var(--ast-divider)" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-base" style={{ color: "var(--ast-text1)" }}>Masa {k.masaNo}</span>
+                      <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odemeZamani)}</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                      style={{ background: "var(--ast-success-bg)", color: "var(--ast-success-text)" }}>
+                      Ödendi
+                    </span>
+                  </div>
+                  <div className="px-4 py-3 space-y-1.5">
+                    {k.urunler.map((u, j) => (
+                      <div key={j} className="flex justify-between text-sm">
+                        <span style={{ color: "var(--ast-text1)" }}>{u.adet}× {u.isim}</span>
+                        <span style={{ color: "var(--ast-text2)" }}>₺{(u.fiyat * u.adet).toFixed(0)}</span>
+                      </div>
+                    ))}
+                    {k.notlar && <p className="text-xs pt-1" style={{ color: "var(--ast-warn-text)" }}>📝 {k.notlar}</p>}
+                  </div>
+                  <div className="flex justify-end px-4 py-3" style={{ borderTop: "1px solid var(--ast-divider)" }}>
+                    <span className="font-black text-xl" style={{ color: "var(--ast-gold)" }}>₺{k.toplam.toFixed(0)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* Günlük Arşiv Drawer */}
