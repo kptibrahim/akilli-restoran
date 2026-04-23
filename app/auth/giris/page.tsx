@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
+import ClearPinSession from "./ClearPinSession";
 
 export default async function GirisPage({
   searchParams,
@@ -28,6 +29,7 @@ export default async function GirisPage({
       className="min-h-screen flex flex-col items-center justify-center p-5 relative overflow-hidden"
       style={{ background: "linear-gradient(135deg, #1C1510 0%, #261C0F 55%, #2E2214 100%)" }}
     >
+      <ClearPinSession />
       {/* Dekoratif yıldız noktaları */}
       <div className="absolute inset-0 pointer-events-none" style={{ overflow: "hidden" }}>
         {[
