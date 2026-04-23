@@ -69,7 +69,7 @@ type Restoran = {
   logo: string | null; aciklama: string | null;
   sosyalMedya: Record<string, string> | null; selectedLanguages: string[] | null;
   wifiAdi: string | null; wifiSifre: string | null;
-  pin_kasiyer: string | null; pin_mutfak: string | null;
+  pin_yonetici: string | null; pin_kasiyer: string | null; pin_mutfak: string | null;
 };
 
 export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
@@ -79,6 +79,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
   const baslangicDiller = restoran.selectedLanguages ?? ["tr"];
 
   const [pinForm, setPinForm] = useState({
+    pinYonetici: restoran.pin_yonetici ?? "",
     pinKasiyer: restoran.pin_kasiyer ?? "",
     pinMutfak: restoran.pin_mutfak ?? "",
   });
@@ -87,6 +88,9 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
   const [pinHata, setPinHata] = useState("");
 
   async function pinKaydet() {
+    if (pinForm.pinYonetici && !/^\d{6}$/.test(pinForm.pinYonetici)) {
+      setPinHata("Yönetici PIN tam 6 rakam olmalı"); return;
+    }
     if (pinForm.pinKasiyer && !/^\d{6}$/.test(pinForm.pinKasiyer)) {
       setPinHata("Kasiyer PIN tam 6 rakam olmalı"); return;
     }
@@ -98,6 +102,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        pinYonetici: pinForm.pinYonetici || null,
         pinKasiyer: pinForm.pinKasiyer || null,
         pinMutfak: pinForm.pinMutfak || null,
       }),
@@ -431,10 +436,11 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
           <span style={{ color: "var(--ast-gold)" }}>🔐</span> Personel PIN Kodları
         </h2>
         <p className="text-xs mb-4" style={{ color: "var(--ast-text2)" }}>
-          Kasiyer ve mutfak personeli bu PIN ile panele giriş yapar. Boş bırakırsan o rol devre dışı kalır.
+          Her rol için 6 haneli PIN belirle. Boş bırakılan rol devre dışı kalır. Yönetici PIN boş bırakılırsa doğrudan giriş yapılır.
         </p>
         <div className="space-y-3">
           {([
+            { label: "Yönetici PIN", key: "pinYonetici" as const, aciklama: "Tam erişim — boş bırakılırsa PIN sorulmaz" },
             { label: "Kasiyer PIN", key: "pinKasiyer" as const, aciklama: "Siparişler + Kasa erişimi" },
             { label: "Mutfak PIN", key: "pinMutfak" as const, aciklama: "Sadece Siparişler erişimi" },
           ] as const).map(({ label, key, aciklama }) => (

@@ -119,19 +119,21 @@ function PinNumpad({
 // ── Rol Seçim Ekranı ────────────────────────────────────────────────────────
 
 function RolSecimEkrani({
+  pinYonetici,
   pinKasiyer,
   pinMutfak,
   onRolSec,
 }: {
+  pinYonetici: string | null;
   pinKasiyer: string | null;
   pinMutfak: string | null;
   onRolSec: (rol: Rol) => void;
 }) {
   const [adim, setAdim] = useState<"secim" | "pin">("secim");
-  const [secilenRol, setSecilenRol] = useState<"kasiyer" | "mutfak" | null>(null);
+  const [secilenRol, setSecilenRol] = useState<Rol | null>(null);
   const [yanlis, setYanlis] = useState(false);
 
-  function rolTus(rol: "kasiyer" | "mutfak") {
+  function rolTus(rol: Rol) {
     setSecilenRol(rol);
     setYanlis(false);
     setAdim("pin");
@@ -139,23 +141,33 @@ function RolSecimEkrani({
 
   const pinDogrula = useCallback(
     (girilenPin: string) => {
-      const dogru = secilenRol === "kasiyer" ? pinKasiyer : pinMutfak;
+      let dogru: string | null = null;
+      if (secilenRol === "yonetici") dogru = pinYonetici;
+      else if (secilenRol === "kasiyer") dogru = pinKasiyer;
+      else if (secilenRol === "mutfak") dogru = pinMutfak;
       if (girilenPin === dogru) {
         onRolSec(secilenRol!);
       } else {
         setYanlis(true);
       }
     },
-    [secilenRol, pinKasiyer, pinMutfak, onRolSec]
+    [secilenRol, pinYonetici, pinKasiyer, pinMutfak, onRolSec]
   );
+
+  const ROL_BASLIK: Record<Rol, string> = {
+    yonetici: "Yönetici",
+    kasiyer: "Kasiyer",
+    mutfak: "Mutfak",
+  };
 
   const secenekler = [
     {
       rol: "yonetici" as const,
       icon: "👑",
       baslik: "Yönetici",
-      aciklama: "Tam erişim · PIN gerekmez",
+      aciklama: pinYonetici ? "Tam erişim · PIN ile giriş" : "PIN henüz ayarlanmadı · Doğrudan giriş",
       aktif: true,
+      pinGerekli: !!pinYonetici,
     },
     {
       rol: "kasiyer" as const,
@@ -163,6 +175,7 @@ function RolSecimEkrani({
       baslik: "Kasiyer",
       aciklama: pinKasiyer ? "Siparişler & Kasa" : "PIN henüz ayarlanmadı",
       aktif: !!pinKasiyer,
+      pinGerekli: true,
     },
     {
       rol: "mutfak" as const,
@@ -170,6 +183,7 @@ function RolSecimEkrani({
       baslik: "Mutfak",
       aciklama: pinMutfak ? "Sadece Siparişler" : "PIN henüz ayarlanmadı",
       aktif: !!pinMutfak,
+      pinGerekli: true,
     },
   ];
 
@@ -197,19 +211,19 @@ function RolSecimEkrani({
             GASTRONOM <span style={{ color: "var(--ast-gold)" }}>AI</span>
           </p>
           <p className="text-sm mt-1.5" style={{ color: "var(--ast-text3)" }}>
-            {adim === "secim" ? "Kim olduğunuzu seçin" : `${secilenRol === "kasiyer" ? "Kasiyer" : "Mutfak"} PIN girişi`}
+            {adim === "secim" ? "Kim olduğunuzu seçin" : `${ROL_BASLIK[secilenRol!]} PIN girişi`}
           </p>
         </div>
 
         {adim === "secim" ? (
           <div className="flex flex-col gap-3">
-            {secenekler.map(({ rol, icon, baslik, aciklama, aktif }) => (
+            {secenekler.map(({ rol, icon, baslik, aciklama, aktif, pinGerekli }) => (
               <button
                 key={rol}
                 onClick={() => {
                   if (!aktif) return;
-                  if (rol === "yonetici") onRolSec("yonetici");
-                  else rolTus(rol);
+                  if (pinGerekli) rolTus(rol);
+                  else onRolSec(rol);
                 }}
                 disabled={!aktif}
                 className="flex items-center gap-4 px-4 py-3.5 rounded-2xl text-left transition-all active:scale-[0.98] disabled:opacity-35"
@@ -223,14 +237,14 @@ function RolSecimEkrani({
                   <p className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>{baslik}</p>
                   <p className="text-xs mt-0.5 truncate" style={{ color: "var(--ast-text3)" }}>{aciklama}</p>
                 </div>
-                {rol !== "yonetici" && aktif && (
+                {aktif && pinGerekli && (
                   <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2}
                     className="shrink-0" style={{ color: "var(--ast-gold)" }}>
                     <rect x="3" y="11" width="18" height="11" rx="2" />
                     <path d="M7 11V7a5 5 0 0110 0v4" />
                   </svg>
                 )}
-                {rol === "yonetici" && (
+                {(!pinGerekli || !aktif) && (
                   <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2}
                     className="shrink-0" style={{ color: "var(--ast-text3)" }}>
                     <path d="M9 18l6-6-6-6" />
@@ -257,12 +271,14 @@ export default function DashboardShell({
   children,
   userEmail,
   restoran,
+  pinYonetici,
   pinKasiyer,
   pinMutfak,
 }: {
   children: React.ReactNode;
   userEmail: string;
   restoran: { id: string; isim: string; slug: string; renk: string; logo: string | null } | null;
+  pinYonetici: string | null;
   pinKasiyer: string | null;
   pinMutfak: string | null;
 }) {
@@ -311,6 +327,7 @@ export default function DashboardShell({
   if (!rol) {
     return (
       <RolSecimEkrani
+        pinYonetici={pinYonetici}
         pinKasiyer={pinKasiyer}
         pinMutfak={pinMutfak}
         onRolSec={rolSec}

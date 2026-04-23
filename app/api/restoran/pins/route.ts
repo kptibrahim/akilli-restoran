@@ -13,8 +13,11 @@ export async function PATCH(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
-    const { pinKasiyer, pinMutfak } = await req.json();
+    const { pinYonetici, pinKasiyer, pinMutfak } = await req.json();
 
+    if (pinYonetici != null && !/^\d{6}$/.test(pinYonetici)) {
+      return NextResponse.json({ error: "Yönetici PIN 6 haneli sayı olmalı" }, { status: 400 });
+    }
     if (pinKasiyer != null && !/^\d{6}$/.test(pinKasiyer)) {
       return NextResponse.json({ error: "Kasiyer PIN 6 haneli sayı olmalı" }, { status: 400 });
     }
@@ -25,6 +28,7 @@ export async function PATCH(req: NextRequest) {
     const { error } = await adminDb
       .from("Restoran")
       .update({
+        pin_yonetici: pinYonetici ?? null,
         pin_kasiyer: pinKasiyer ?? null,
         pin_mutfak: pinMutfak ?? null,
       })
