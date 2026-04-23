@@ -162,7 +162,7 @@ export default async function GirisPage({
               Kayıt olun
             </a>
           </p>
-          <a href="/auth/sifre-sifirla" className="text-xs font-medium" style={{ color: "rgba(245,230,200,0.4)" }}>
+          <a href="/auth/sifre-sifirla" className="text-xs font-semibold underline underline-offset-2" style={{ color: "#C89434" }}>
             Şifremi Unuttum
           </a>
         </div>
