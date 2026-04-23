@@ -30,6 +30,16 @@ function OrderIcon() {
     </svg>
   );
 }
+function KasaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
+      <line x1="12" y1="12" x2="12" y2="16" />
+      <line x1="10" y1="14" x2="14" y2="14" />
+    </svg>
+  );
+}
 function QrIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
@@ -83,6 +93,7 @@ const LINKLER = [
   { href: "/dashboard", label: "Ana Sayfa", Icon: HomeIcon },
   { href: "/dashboard/menu-editor", label: "Menü", Icon: MenuIcon },
   { href: "/dashboard/siparisler", label: "Siparişler", Icon: OrderIcon },
+  { href: "/dashboard/kasa", label: "Kasa", Icon: KasaIcon },
   { href: "/dashboard/qr-kodlar", label: "QR Kodlar", Icon: QrIcon },
   { href: "/dashboard/ayarlar", label: "Ayarlar", Icon: GearIcon },
 ];
@@ -106,6 +117,26 @@ export default function DashboardNav({
 
   const [cagrilar, setCagrilar] = useState<GarsonCagri[]>([]);
   const [yukleniyor, setYukleniyor] = useState<string | null>(null);
+  const [kasaBekleyen, setKasaBekleyen] = useState(0);
+
+  useEffect(() => {
+    function kasaSay() {
+      try {
+        const kayitlar: { masaNo: string }[] = JSON.parse(localStorage.getItem("gastronom_kasa") || "[]");
+        const masalar = new Set(kayitlar.map((k) => k.masaNo));
+        setKasaBekleyen(masalar.size);
+      } catch { setKasaBekleyen(0); }
+    }
+    kasaSay();
+    window.addEventListener("storage", kasaSay);
+    window.addEventListener("kasa-guncellendi", kasaSay);
+    const timer = setInterval(kasaSay, 4000);
+    return () => {
+      window.removeEventListener("storage", kasaSay);
+      window.removeEventListener("kasa-guncellendi", kasaSay);
+      clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!restoranId) return;
@@ -207,6 +238,7 @@ export default function DashboardNav({
         <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
           {LINKLER.map(({ href, label, Icon }) => {
             const aktif = aktifMi(href);
+            const rozet = href === "/dashboard/kasa" && kasaBekleyen > 0 ? kasaBekleyen : 0;
             return (
               <a
                 key={href}
@@ -224,6 +256,12 @@ export default function DashboardNav({
                   <Icon />
                 </span>
                 {label}
+                {rozet > 0 && (
+                  <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
+                    style={{ background: "var(--ast-gold)", color: "#0A0705" }}>
+                    {rozet}
+                  </span>
+                )}
               </a>
             );
           })}
@@ -265,7 +303,7 @@ export default function DashboardNav({
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-colors"
               style={{ color: "var(--ast-text3)" }}>
               <UserIcon />
-              <span>Kullanıcı Paneli</span>
+              <span>Müşteri Sayfası</span>
             </a>
           )}
           <button onClick={cikisYap}

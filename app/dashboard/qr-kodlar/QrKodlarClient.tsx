@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 
 const QRCodeCanvas = dynamic(() => import("qrcode.react").then((mod) => mod.QRCodeCanvas), { ssr: false });
+const QRCodeSVG = dynamic(() => import("qrcode.react").then((mod) => mod.QRCodeSVG), { ssr: false });
 
 type Masa = { id: string; isim: string };
 
@@ -44,33 +45,21 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
   const [masalar, setMasalar] = useState<Masa[]>([]);
   const [yeniIsim, setYeniIsim] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [customBase, setCustomBase] = useState("");
-  const [editingBase, setEditingBase] = useState(false);
   const [panelAcik, setPanelAcik] = useState(false);
   const [ready, setReady] = useState(false);
+  const [kopyalandi, setKopyalandi] = useState(false);
 
   useEffect(() => {
     setBaseUrl(window.location.origin);
     try {
       const kayitli = localStorage.getItem("gastronom_masalar");
       if (kayitli) setMasalar(JSON.parse(kayitli));
-      const savedBase = localStorage.getItem("gastronom_base_url");
-      if (savedBase) setCustomBase(savedBase);
     } catch { localStorage.removeItem("gastronom_masalar"); }
     setReady(true);
   }, []);
 
-  const activeBase = customBase || baseUrl;
   const anaKod = masalar[0] ?? null;
   const digerKodlar = masalar.slice(1);
-
-  function baseUrlKaydet() {
-    const val = customBase.trim().replace(/\/$/, "");
-    setCustomBase(val);
-    if (val) localStorage.setItem("gastronom_base_url", val);
-    else localStorage.removeItem("gastronom_base_url");
-    setEditingBase(false);
-  }
 
   function kaydet(liste: Masa[]) {
     setMasalar(liste);
@@ -90,17 +79,47 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
     if (yeni.length <= 1) setPanelAcik(false);
   }
 
+  const menuUrl = `${baseUrl}/${slug}`;
+
   function qrUrl(masa: Masa) {
-    return `${activeBase}/${slug}?masa=${encodeURIComponent(masa.isim)}`;
+    return `${baseUrl}/${slug}?masa=${encodeURIComponent(masa.isim)}`;
   }
 
-  function qrIndir(masa: Masa, canvasId: string) {
-    const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-    if (!canvas) return;
-    const link = document.createElement("a");
-    link.download = `${masa.isim.replace(/\s+/g, "-")}-qr.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+  function kopyala() {
+    navigator.clipboard.writeText(menuUrl).then(() => {
+      setKopyalandi(true);
+      setTimeout(() => setKopyalandi(false), 2000);
+    });
+  }
+
+  // SVG tabanlı indirme: logo olmadan temiz canvas → CORS sorunu yok
+  function qrIndir(masa: Masa) {
+    const svgEl = document.getElementById(`qr-dl-${masa.id}`) as SVGSVGElement | null;
+    if (!svgEl) return;
+
+    const svgStr = new XMLSerializer().serializeToString(svgEl);
+    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const img = new Image();
+    img.onload = () => {
+      const size = 512;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+
+      const link = document.createElement("a");
+      link.download = `${masa.isim.replace(/\s+/g, "-")}-qr.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
   }
 
   const inputStyle = {
@@ -129,30 +148,37 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
 
       {/* Menü URL */}
       <div className="p-4 mb-4" style={cardStyle}>
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="font-semibold text-sm" style={{ color: "var(--ast-text1)" }}>Menü Adresi (URL)</h2>
-          <button onClick={() => setEditingBase(!editingBase)} className="text-xs font-semibold" style={{ color: "var(--ast-gold)" }}>
-            {editingBase ? "İptal" : "Düzenle"}
-          </button>
-        </div>
-        {editingBase ? (
-          <div className="flex gap-2 mt-2">
-            <input value={customBase} onChange={(e) => setCustomBase(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && baseUrlKaydet()}
-              placeholder={baseUrl} style={inputStyle} />
-            <button onClick={baseUrlKaydet} className="px-4 py-2 rounded-xl text-sm font-semibold shrink-0"
-              style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
-              Kaydet
+        <h2 className="font-semibold text-sm mb-2" style={{ color: "var(--ast-text1)" }}>Menü Adresi (URL)</h2>
+        <div className="flex items-center gap-2">
+          <a
+            href={ready ? menuUrl : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs break-all flex-1"
+            style={{ color: "var(--ast-gold)", textDecoration: "none" }}
+          >
+            {ready ? menuUrl : "Yükleniyor..."}
+          </a>
+          {ready && (
+            <button
+              onClick={kopyala}
+              title="Kopyala"
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+              style={{ background: kopyalandi ? "#16a34a22" : "var(--ast-badge-bg)", color: kopyalandi ? "#16a34a" : "var(--ast-text2)" }}
+            >
+              {kopyalandi ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              )}
             </button>
-          </div>
-        ) : (
-          <p className="text-xs mt-1 break-all" style={{ color: "var(--ast-text3)" }}>{activeBase || "Yükleniyor..."}</p>
-        )}
-        {ready && !customBase && baseUrl.includes("localhost") && (
-          <p className="text-xs mt-2" style={{ color: "var(--ast-warn-text)" }}>
-            ⚠️ Şu an localhost kullanılıyor. Telefon erişimi için IP adresinizi girin.
-          </p>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Yeni Masa */}
@@ -177,6 +203,15 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
         </div>
       )}
 
+      {/* Gizli SVGler — indirme için (logo yok = CORS sorunu yok) */}
+      {ready && (
+        <div style={{ position: "fixed", left: -9999, top: -9999, opacity: 0, pointerEvents: "none" }}>
+          {masalar.map((masa) => (
+            <QRCodeSVG key={masa.id} id={`qr-dl-${masa.id}`} value={qrUrl(masa)} size={512} />
+          ))}
+        </div>
+      )}
+
       {/* Ana QR Kod + Panel Butonu */}
       {anaKod && ready && (
         <div className="flex items-stretch gap-3">
@@ -192,7 +227,7 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
             </div>
             <div className="flex flex-col items-center p-5 gap-3">
               <div className="p-3 rounded-xl" style={{ background: "#FFFFFF", border: "1px solid var(--ast-divider)" }}>
-                <QRCodeCanvas id={`qr-main-${anaKod.id}`} value={qrUrl(anaKod)} size={160} marginSize={1}
+                <QRCodeCanvas value={qrUrl(anaKod)} size={160} marginSize={1}
                   {...(logo ? { imageSettings: { src: logo, width: 36, height: 36, excavate: true } } : {})} />
               </div>
               <p className="text-[10px] text-center break-all px-2" style={{ color: "var(--ast-text3)" }}>{qrUrl(anaKod)}</p>
@@ -202,7 +237,7 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
                   style={{ border: "1px solid var(--ast-error-border)", background: "var(--ast-error-bg)", color: "var(--ast-error-text)" }}>
                   <TrashIcon /> Kaldır
                 </button>
-                <button onClick={() => qrIndir(anaKod, `qr-main-${anaKod.id}`)}
+                <button onClick={() => qrIndir(anaKod)}
                   className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-xl text-xs font-semibold"
                   style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
                   <DownloadIcon /> İndir
@@ -274,7 +309,7 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
                   style={{ background: "var(--ast-icon-bg)", border: "1px solid var(--ast-divider)" }}>
                   {/* Küçük QR */}
                   <div className="shrink-0 p-1.5 rounded-xl" style={{ background: "#FFFFFF" }}>
-                    <QRCodeCanvas id={`qr-panel-${masa.id}`} value={qrUrl(masa)} size={64} marginSize={1}
+                    <QRCodeCanvas value={qrUrl(masa)} size={64} marginSize={1}
                       {...(logo ? { imageSettings: { src: logo, width: 16, height: 16, excavate: true } } : {})} />
                   </div>
                   {/* İsim + butonlar */}
@@ -282,7 +317,7 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
                     <p className="text-sm font-bold truncate" style={{ color: "var(--ast-text1)" }}>{masa.isim}</p>
                     <div className="flex gap-1.5 mt-2">
                       <button
-                        onClick={() => qrIndir(masa, `qr-panel-${masa.id}`)}
+                        onClick={() => qrIndir(masa)}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold"
                         style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
                         <DownloadIcon /> İndir

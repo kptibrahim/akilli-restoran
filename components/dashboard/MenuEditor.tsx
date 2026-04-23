@@ -21,6 +21,18 @@ const EMOJILER = [
   "🍽️","⭐","🔥","✨","🎯",
 ];
 
+const KIRP_BOYUT = 300;
+
+type KirpState = {
+  dosya: File;
+  imgUrl: string;
+  imgEl: HTMLImageElement;
+  displayW: number;
+  displayH: number;
+  minX: number;
+  minY: number;
+};
+
 function EmojiSecici({ secili, onSec, onKapat }: { secili: string; onSec: (e: string) => void; onKapat: () => void }) {
   return (
     <div className="absolute z-50 top-full left-0 mt-1 p-2 rounded-2xl shadow-2xl"
@@ -52,18 +64,92 @@ export default function MenuEditor({ restoranId, kategoriler: ilkKategoriler }: 
   const [gorselYukleniyor, setGorselYukleniyor] = useState(false);
   const dosyaInputRef = useRef<HTMLInputElement>(null);
 
-  async function gorselSec(e: React.ChangeEvent<HTMLInputElement>) {
-    const dosya = e.target.files?.[0];
-    if (!dosya) return;
+  const [kirpModal, setKirpModal] = useState<KirpState | null>(null);
+  const kirpImgRef = useRef<HTMLDivElement>(null);
+  const kirpOffset = useRef({ x: 0, y: 0 });
+  const kirpDrag = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+
+  async function uploadDosya(dosyaVeyaBlob: File | Blob, isim?: string) {
     setGorselYukleniyor(true);
     const form = new FormData();
-    form.append("dosya", dosya);
+    const obj = dosyaVeyaBlob instanceof File
+      ? dosyaVeyaBlob
+      : new File([dosyaVeyaBlob], isim ?? "gorsel.jpg", { type: "image/jpeg" });
+    form.append("dosya", obj);
     const res = await fetch("/api/upload", { method: "POST", body: form });
     const json = await res.json();
     if (json.error) alert("Görsel yüklenemedi: " + json.error);
     else setUrunForm((f) => ({ ...f, gorsel: json.url }));
     setGorselYukleniyor(false);
+  }
+
+  async function gorselSec(e: React.ChangeEvent<HTMLInputElement>) {
+    const dosya = e.target.files?.[0];
+    if (!dosya) return;
     e.target.value = "";
+
+    const imgUrl = URL.createObjectURL(dosya);
+    const imgEl = await new Promise<HTMLImageElement>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.src = imgUrl;
+    });
+
+    if (Math.abs(imgEl.width - imgEl.height) <= 2) {
+      URL.revokeObjectURL(imgUrl);
+      await uploadDosya(dosya);
+      return;
+    }
+
+    const scale = KIRP_BOYUT / Math.min(imgEl.width, imgEl.height);
+    const displayW = Math.round(imgEl.width * scale);
+    const displayH = Math.round(imgEl.height * scale);
+    kirpOffset.current = { x: 0, y: 0 };
+    setKirpModal({
+      dosya, imgUrl, imgEl, displayW, displayH,
+      minX: -(displayW - KIRP_BOYUT),
+      minY: -(displayH - KIRP_BOYUT),
+    });
+  }
+
+  function kirpDragBasla(clientX: number, clientY: number) {
+    kirpDrag.current = { startX: clientX, startY: clientY, ox: kirpOffset.current.x, oy: kirpOffset.current.y };
+  }
+
+  function kirpDragHareket(clientX: number, clientY: number) {
+    if (!kirpDrag.current || !kirpModal) return;
+    const dx = clientX - kirpDrag.current.startX;
+    const dy = clientY - kirpDrag.current.startY;
+    const newX = Math.min(0, Math.max(kirpModal.minX, kirpDrag.current.ox + dx));
+    const newY = Math.min(0, Math.max(kirpModal.minY, kirpDrag.current.oy + dy));
+    kirpOffset.current = { x: newX, y: newY };
+    if (kirpImgRef.current) kirpImgRef.current.style.transform = `translate(${newX}px, ${newY}px)`;
+  }
+
+  function kirpDragBitir() {
+    kirpDrag.current = null;
+  }
+
+  async function kirpVeYukle() {
+    if (!kirpModal) return;
+    const { imgEl, dosya, minX, minY } = kirpModal;
+    const scale = KIRP_BOYUT / Math.min(imgEl.width, imgEl.height);
+    const cx = Math.min(0, Math.max(minX, kirpOffset.current.x));
+    const cy = Math.min(0, Math.max(minY, kirpOffset.current.y));
+    const srcX = (-cx) / scale;
+    const srcY = (-cy) / scale;
+    const srcSize = KIRP_BOYUT / scale;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 800;
+    canvas.getContext("2d")!.drawImage(imgEl, srcX, srcY, srcSize, srcSize, 0, 0, 800, 800);
+
+    const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.92));
+    const isim = dosya.name.replace(/\.[^.]+$/, ".jpg");
+    URL.revokeObjectURL(kirpModal.imgUrl);
+    setKirpModal(null);
+    await uploadDosya(blob, isim);
   }
 
   async function kategoriEkle() {
@@ -234,7 +320,6 @@ export default function MenuEditor({ restoranId, kategoriler: ilkKategoriler }: 
                   : { borderBottom: "1px solid var(--ast-divider)" }}
                 onClick={() => setAktifKat(k.id)}>
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  {/* Emoji — tıklanınca değiştirilebilir */}
                   <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setEmojiDegistirKatId(emojiDegistirKatId === k.id ? null : k.id)}
@@ -265,7 +350,6 @@ export default function MenuEditor({ restoranId, kategoriler: ilkKategoriler }: 
           <div className="p-3" style={{ borderTop: "1px solid var(--ast-divider)" }}>
             {katEklemeAcik ? (
               <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                {/* Emoji seçici satırı */}
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <button onClick={() => setYeniKatEmojiAcik((v) => !v)}
@@ -489,6 +573,84 @@ export default function MenuEditor({ restoranId, kategoriler: ilkKategoriler }: 
                 className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
                 {yukleniyor ? "Kaydediliyor..." : "Kaydet"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kırpma Modalı */}
+      {kirpModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.85)" }}>
+          <div className="rounded-2xl w-full overflow-hidden" style={{ maxWidth: KIRP_BOYUT + 40, background: "var(--ast-modal-bg)", border: "1px solid var(--ast-card-border)" }}>
+            <div className="px-5 py-4 flex items-center justify-between"
+              style={{ borderBottom: "1px solid var(--ast-divider)" }}>
+              <div>
+                <p className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>Fotoğrafı Konumlandır</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--ast-text3)" }}>
+                  {kirpModal.displayW > KIRP_BOYUT ? "Sola/sağa sürükle" : "Yukarı/aşağı sürükle"}
+                </p>
+              </div>
+              <button
+                onClick={() => { URL.revokeObjectURL(kirpModal.imgUrl); setKirpModal(null); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg"
+                style={{ background: "var(--ast-badge-bg)", color: "var(--ast-text2)" }}>✕
+              </button>
+            </div>
+
+            <div className="p-5 flex justify-center">
+              {/* Kırpma çerçevesi */}
+              <div
+                style={{
+                  width: KIRP_BOYUT, height: KIRP_BOYUT,
+                  overflow: "hidden", borderRadius: 12,
+                  position: "relative",
+                  border: "2px solid var(--ast-gold)",
+                  cursor: "grab",
+                  touchAction: "none",
+                  userSelect: "none",
+                }}
+                onMouseDown={(e) => { e.preventDefault(); kirpDragBasla(e.clientX, e.clientY); }}
+                onMouseMove={(e) => kirpDragHareket(e.clientX, e.clientY)}
+                onMouseUp={kirpDragBitir}
+                onMouseLeave={kirpDragBitir}
+                onTouchStart={(e) => { e.preventDefault(); kirpDragBasla(e.touches[0].clientX, e.touches[0].clientY); }}
+                onTouchMove={(e) => { e.preventDefault(); kirpDragHareket(e.touches[0].clientX, e.touches[0].clientY); }}
+                onTouchEnd={kirpDragBitir}
+              >
+                <div
+                  ref={kirpImgRef}
+                  style={{
+                    position: "absolute",
+                    width: kirpModal.displayW,
+                    height: kirpModal.displayH,
+                    transform: "translate(0px, 0px)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <img
+                    src={kirpModal.imgUrl}
+                    alt=""
+                    draggable={false}
+                    style={{ width: "100%", height: "100%", display: "block" }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 pb-5 flex gap-3">
+              <button
+                onClick={() => { URL.revokeObjectURL(kirpModal.imgUrl); setKirpModal(null); }}
+                className="flex-1 py-3 rounded-xl text-sm font-medium"
+                style={{ border: "1px solid var(--ast-divider)", color: "var(--ast-text2)", background: "var(--ast-badge-bg)" }}>
+                İptal
+              </button>
+              <button
+                onClick={kirpVeYukle}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
+                Kırp ve Yükle
               </button>
             </div>
           </div>

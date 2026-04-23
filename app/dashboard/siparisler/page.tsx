@@ -3,6 +3,17 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase-browser";
 
+function trFix(str: string) {
+  return str
+    .replace(/ğ/g, "g").replace(/Ğ/g, "G")
+    .replace(/ş/g, "s").replace(/Ş/g, "S")
+    .replace(/ı/g, "i").replace(/İ/g, "I")
+    .replace(/ü/g, "u").replace(/Ü/g, "U")
+    .replace(/ö/g, "o").replace(/Ö/g, "O")
+    .replace(/ç/g, "c").replace(/Ç/g, "C")
+    .replace(/₺/g, "TL");
+}
+
 type SepetUrun = { isim: string; adet: number; fiyat: number };
 type Siparis = {
   id: string; masaNo: string; urunler: SepetUrun[];
@@ -25,7 +36,8 @@ const DURUM_CONFIG: Record<string, {
 };
 
 function saatFormat(iso: string) {
-  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  const s = iso.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + "Z";
+  return new Date(s).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function csvIndir(siparisler: Siparis[]) {
@@ -41,7 +53,7 @@ function csvIndir(siparisler: Siparis[]) {
     ]),
   ];
   const icerik = satirlar.map((r) => r.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob(["\uFEFF" + icerik], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob(["﻿" + icerik], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const tarih = new Date().toLocaleDateString("tr-TR").replace(/\./g, "-");
@@ -49,6 +61,144 @@ function csvIndir(siparisler: Siparis[]) {
   a.download = `siparisler-${tarih}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+async function pdfIndir(siparisler: Siparis[]) {
+  const { jsPDF } = await import("jspdf");
+  const tarih = new Date().toLocaleDateString("tr-TR");
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text(trFix(`Gunluk Siparis Arsivi - ${tarih}`), 14, 16);
+
+  const cols = [
+    { label: "Saat", w: 22 },
+    { label: "Masa", w: 28 },
+    { label: "Urunler", w: 110 },
+    { label: "Notlar", w: 50 },
+    { label: "Durum", w: 28 },
+    { label: "Toplam", w: 30 },
+  ];
+  const totalW = cols.reduce((a, c) => a + c.w, 0);
+  let y = 26;
+
+  doc.setFillColor(200, 148, 52);
+  doc.rect(14, y, totalW, 8, "F");
+  doc.setFontSize(9);
+  doc.setTextColor(10, 7, 5);
+  let x = 14;
+  cols.forEach((c) => { doc.text(c.label, x + 2, y + 5.5); x += c.w; });
+  y += 9;
+
+  siparisler.forEach((s, idx) => {
+    if (y > 185) { doc.addPage(); y = 15; }
+    doc.setFillColor(idx % 2 === 0 ? 245 : 235, idx % 2 === 0 ? 242 : 240, idx % 2 === 0 ? 238 : 236);
+    doc.rect(14, y, totalW, 7.5, "F");
+    doc.setTextColor(20, 20, 20);
+    doc.setFont("helvetica", "normal");
+    const durum = trFix((DURUM_CONFIG[s.durum]?.etiket ?? s.durum).replace(/[^\w\s\-.,]/g, ""));
+    const row = [
+      saatFormat(s.createdAt),
+      trFix(s.masaNo),
+      trFix(s.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", ")),
+      trFix(s.notlar ?? ""),
+      durum,
+      `TL${s.toplam.toFixed(2)}`,
+    ];
+    x = 14;
+    row.forEach((cell, i) => {
+      const lines = doc.splitTextToSize(String(cell), cols[i].w - 3);
+      doc.text(lines[0], x + 2, y + 5);
+      x += cols[i].w;
+    });
+    y += 8;
+  });
+
+  y += 4;
+  const ciro = siparisler.reduce((a, s) => a + s.toplam, 0);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(200, 148, 52);
+  doc.text(`Toplam Ciro: TL${ciro.toFixed(2)}`, 14, y);
+  doc.save(`siparisler-${tarih.replace(/\./g, "-")}.pdf`);
+}
+
+function pngIndir(siparisler: Siparis[]) {
+  const pad = 28;
+  const cols = [
+    { label: "Saat", w: 72 },
+    { label: "Masa", w: 86 },
+    { label: "Ürünler", w: 330 },
+    { label: "Notlar", w: 160 },
+    { label: "Durum", w: 110 },
+    { label: "Toplam", w: 80 },
+  ];
+  const totalW = cols.reduce((a, c) => a + c.w, 0) + pad * 2;
+  const rowH = 38;
+  const headH = 44;
+  const titleH = 58;
+  const footH = 46;
+  const totalH = titleH + headH + siparisler.length * rowH + footH + pad;
+  const sc = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = totalW * sc;
+  canvas.height = totalH * sc;
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(sc, sc);
+
+  ctx.fillStyle = "#0A0705";
+  ctx.fillRect(0, 0, totalW, totalH);
+
+  ctx.fillStyle = "#E8B84B";
+  ctx.font = "bold 18px system-ui, sans-serif";
+  ctx.fillText("Günlük Sipariş Arşivi", pad, 36);
+  ctx.fillStyle = "#888";
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillText(new Date().toLocaleDateString("tr-TR"), pad, 52);
+
+  ctx.fillStyle = "#C89434";
+  ctx.fillRect(pad, titleH, totalW - pad * 2, headH);
+  let px = pad;
+  ctx.fillStyle = "#0A0705";
+  ctx.font = "bold 12px system-ui, sans-serif";
+  cols.forEach((c) => { ctx.fillText(c.label, px + 8, titleH + 28); px += c.w; });
+
+  siparisler.forEach((s, idx) => {
+    const ry = titleH + headH + idx * rowH;
+    ctx.fillStyle = idx % 2 === 0 ? "#151210" : "#1c1612";
+    ctx.fillRect(pad, ry, totalW - pad * 2, rowH);
+    const row = [
+      saatFormat(s.createdAt),
+      s.masaNo,
+      s.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", "),
+      s.notlar ?? "",
+      (DURUM_CONFIG[s.durum]?.etiket ?? s.durum).replace(/[^\w\s\-.,ğşıüöçĞŞİÜÖÇ]/g, ""),
+      `₺${s.toplam.toFixed(0)}`,
+    ];
+    px = pad;
+    ctx.fillStyle = "#d9cfc4";
+    ctx.font = "12px system-ui, sans-serif";
+    row.forEach((cell, i) => {
+      const maxCh = Math.floor((cols[i].w - 16) / 7.2);
+      const txt = cell.length > maxCh ? cell.slice(0, maxCh - 1) + "…" : cell;
+      ctx.fillText(txt, px + 8, ry + 24);
+      px += cols[i].w;
+    });
+  });
+
+  const fy = titleH + headH + siparisler.length * rowH;
+  ctx.fillStyle = "#1e1a16";
+  ctx.fillRect(pad, fy, totalW - pad * 2, footH);
+  const ciro = siparisler.reduce((a, s) => a + s.toplam, 0);
+  ctx.fillStyle = "#E8B84B";
+  ctx.font = "bold 14px system-ui, sans-serif";
+  ctx.fillText(`Toplam Ciro: ₺${ciro.toFixed(0)}  ·  ${siparisler.length} siparis`, pad + 10, fy + 28);
+
+  const tarih = new Date().toLocaleDateString("tr-TR").replace(/\./g, "-");
+  const a = document.createElement("a");
+  a.download = `siparisler-${tarih}.png`;
+  a.href = canvas.toDataURL("image/png");
+  a.click();
 }
 
 export default function SiparislerPage() {
@@ -92,9 +242,7 @@ export default function SiparislerPage() {
     if (!restoranId) return;
     setArsivAcik(true);
     setArsivYukleniyor(true);
-    // 24 saatten eski siparişleri otomatik sil
     fetch(`/api/siparis?restoranId=${restoranId}`, { method: "DELETE" });
-    // Bugünün tüm siparişlerini çek
     const res = await fetch(`/api/siparis?restoranId=${restoranId}&arsiv=true`);
     const data = await res.json();
     setArsivSiparisler(data.siparisler ?? []);
@@ -107,12 +255,31 @@ export default function SiparislerPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ siparisId, durum }),
     });
+    if (durum === "teslim") {
+      const siparis = siparisler.find((s) => s.id === siparisId);
+      if (siparis) {
+        try {
+          const mevcut = JSON.parse(localStorage.getItem("gastronom_kasa") || "[]");
+          localStorage.setItem("gastronom_kasa", JSON.stringify([
+            ...mevcut,
+            {
+              id: siparis.id,
+              masaNo: siparis.masaNo,
+              urunler: siparis.urunler,
+              toplam: siparis.toplam,
+              notlar: siparis.notlar,
+              teslimSaati: new Date().toISOString(),
+            },
+          ]));
+          window.dispatchEvent(new CustomEvent("kasa-guncellendi"));
+        } catch {}
+      }
+    }
     yukle();
   }
 
   const aktifSiparisler = siparisler.filter((s) => s.durum !== "teslim");
 
-  // Arşiv özet istatistikleri
   const arsivToplam = arsivSiparisler.reduce((acc, s) => acc + s.toplam, 0);
   const arsivTeslim = arsivSiparisler.filter((s) => s.durum === "teslim").length;
 
@@ -141,7 +308,6 @@ export default function SiparislerPage() {
             style={{ border: "1px solid var(--ast-divider)", background: "var(--ast-card-bg)", color: "var(--ast-text2)" }}>
             ↻ Yenile
           </button>
-          {/* Günlük Arşiv Butonu */}
           <button onClick={arsivAc}
             className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl font-semibold transition-all"
             style={{ border: "1px solid var(--ast-gold)", background: "var(--ast-nav-active-bg)", color: "var(--ast-gold)" }}>
@@ -207,10 +373,8 @@ export default function SiparislerPage() {
       {/* Arşiv Overlay */}
       {arsivAcik && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Arka plan */}
           <div className="absolute inset-0 bg-black/40" onClick={() => setArsivAcik(false)} />
 
-          {/* Panel */}
           <div
             className="relative flex flex-col h-full w-full max-w-md"
             style={{ background: "var(--ast-bg)", borderLeft: "1px solid var(--ast-divider)", animation: "slideInRight 0.3s ease" }}
@@ -250,21 +414,50 @@ export default function SiparislerPage() {
               </div>
             )}
 
-            {/* İndirme Butonu */}
+            {/* İndirme Butonları */}
             {!arsivYukleniyor && arsivSiparisler.length > 0 && (
               <div className="px-5 py-3" style={{ borderBottom: "1px solid var(--ast-divider)" }}>
-                <button
-                  onClick={() => csvIndir(arsivSiparisler)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold"
-                  style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}
-                >
-                  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2.5}>
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  CSV Olarak İndir
-                </button>
+                <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--ast-text3)" }}>Arşivi İndir</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => csvIndir(arsivSiparisler)}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-opacity hover:opacity-80"
+                    style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", color: "var(--ast-text1)" }}
+                  >
+                    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                      <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    CSV
+                  </button>
+                  <button
+                    onClick={() => pdfIndir(arsivSiparisler)}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-opacity hover:opacity-80"
+                    style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", color: "var(--ast-text1)" }}
+                  >
+                    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <path d="M9 13h1a1 1 0 010 2H9v-2zm0 0v4m6-4h-1.5a.5.5 0 000 1H15a1 1 0 010 2h-1.5"/>
+                    </svg>
+                    PDF
+                  </button>
+                  <button
+                    onClick={() => pngIndir(arsivSiparisler)}
+                    className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-opacity hover:opacity-80"
+                    style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", color: "var(--ast-text1)" }}
+                  >
+                    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
+                      <rect x="3" y="3" width="18" height="18" rx="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    PNG
+                  </button>
+                </div>
               </div>
             )}
 

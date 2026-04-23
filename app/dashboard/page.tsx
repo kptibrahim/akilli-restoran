@@ -61,18 +61,41 @@ export default async function DashboardPage() {
 
       {/* Başlık */}
       <div className="mb-8">
-        <p className="text-sm mb-1" style={{ color: "var(--ast-text3)" }}>Gastronom Yönetim Paneli</p>
-        <h1 className="text-3xl md:text-4xl font-black" style={{ color: "var(--ast-text1)" }}>
-          Hoş Geldiniz, {restoran?.isim ?? "Restoran"}
+        <div className="flex items-center gap-2 mb-2">
+          <div
+            className="h-5 px-2.5 rounded-full flex items-center"
+            style={{
+              background: "rgba(200,148,52,0.12)",
+              border: "1px solid rgba(200,148,52,0.25)",
+            }}
+          >
+            <span className="text-[10px] font-bold tracking-[0.15em] uppercase" style={{ color: "var(--ast-gold)" }}>
+              Yönetim Paneli
+            </span>
+          </div>
+        </div>
+        <h1
+          className="text-3xl md:text-4xl font-black leading-tight"
+          style={{ color: "var(--ast-text1)" }}
+        >
+          Hoş Geldiniz,{" "}
+          <span style={{ color: "var(--ast-gold)" }}>{restoran?.isim ?? "Restoran"}</span>
         </h1>
         {restoran && (
-          <a href={`/${restoran.slug}`} target="_blank"
-            className="inline-flex items-center gap-1.5 text-xs mt-2 font-medium"
-            style={{ color: "var(--ast-gold)" }}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" style={{ width: 12, height: 12 }}>
+          <a
+            href={`/${restoran.slug}`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 text-xs mt-3 font-semibold px-3 py-1.5 rounded-xl"
+            style={{
+              color: "var(--ast-gold)",
+              background: "rgba(200,148,52,0.08)",
+              border: "1px solid rgba(200,148,52,0.2)",
+            }}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" style={{ width: 11, height: 11 }}>
               <path d="M8 2h6v6M6 10L14 2M2 6v8h8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            /{restoran.slug}
+            Müşteri sayfasını görüntüle
           </a>
         )}
       </div>
@@ -87,39 +110,66 @@ export default async function DashboardPage() {
 
       {/* Sipariş uyarısı */}
       {bekleyen > 0 && (
-        <a href="/dashboard/siparisler"
-          className="flex items-center gap-4 mb-7 p-4 rounded-2xl"
-          style={{ background: "var(--ast-warn-bg)", border: "1.5px solid var(--ast-warn-border)" }}>
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0"
-            style={{ background: "var(--ast-icon-bg)" }}>🔔</div>
-          <div>
-            <p className="font-bold text-sm" style={{ color: "var(--ast-warn-text)" }}>{bekleyen} yeni sipariş var!</p>
+        <a
+          href="/dashboard/siparisler"
+          className="flex items-center gap-4 mb-7 p-4 rounded-2xl transition-all active:scale-[0.99]"
+          style={{
+            background: "linear-gradient(135deg, rgba(200,148,52,0.12) 0%, rgba(200,148,52,0.06) 100%)",
+            border: "1.5px solid rgba(200,148,52,0.3)",
+            boxShadow: "0 4px 20px rgba(200,148,52,0.1)",
+          }}
+        >
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0"
+            style={{ background: "rgba(200,148,52,0.15)", border: "1px solid rgba(200,148,52,0.25)" }}
+          >
+            🔔
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm" style={{ color: "var(--ast-gold)", fontFamily: "inherit" }}>
+              {bekleyen} yeni sipariş var!
+            </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--ast-text3)" }}>Hemen görüntüle →</p>
           </div>
         </a>
       )}
 
-      {/* Kartlar — tam screenshots'daki gibi 2 kolon */}
+      {/* Kartlar */}
       <div className="grid grid-cols-2 gap-4">
         {kartlar.map(({ href, Icon, baslik, aciklama, vurgu }) => (
           <a
             key={href}
             href={href}
-            className="rounded-2xl p-6 flex flex-col gap-4 transition-transform active:scale-95"
+            className="rounded-2xl p-5 flex flex-col gap-4 transition-all active:scale-[0.97] hover:scale-[1.01]"
             style={{
-              background: "var(--ast-card-bg)",
-              border: `1px solid ${vurgu ? "var(--ast-warn-border)" : "var(--ast-card-border)"}`,
-              boxShadow: "var(--ast-card-shadow)",
+              background: vurgu
+                ? "linear-gradient(135deg, rgba(200,148,52,0.1) 0%, rgba(200,148,52,0.05) 100%)"
+                : "var(--ast-card-bg)",
+              border: `1px solid ${vurgu ? "rgba(200,148,52,0.3)" : "var(--ast-card-border)"}`,
+              boxShadow: vurgu
+                ? "0 4px 20px rgba(200,148,52,0.1)"
+                : "0 2px 12px rgba(0,0,0,0.2)",
             }}
           >
-            {/* İkon kutusu */}
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-              style={{ background: "var(--ast-icon-bg)" }}>
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style={{
+                background: vurgu
+                  ? "rgba(200,148,52,0.15)"
+                  : "var(--ast-icon-bg)",
+                border: `1px solid ${vurgu ? "rgba(200,148,52,0.3)" : "transparent"}`,
+              }}
+            >
               <Icon />
             </div>
             <div>
-              <h2 className="font-black text-lg leading-tight" style={{ color: "var(--ast-text1)" }}>{baslik}</h2>
-              <p className="text-sm mt-1 leading-snug" style={{ color: vurgu ? "var(--ast-warn-text)" : "var(--ast-text2)" }}>
+              <h2
+                className="font-black text-base leading-tight"
+                style={{ color: "var(--ast-text1)", fontFamily: "inherit" }}
+              >
+                {baslik}
+              </h2>
+              <p className="text-xs mt-1 leading-relaxed" style={{ color: vurgu ? "var(--ast-warn-text)" : "var(--ast-text2)" }}>
                 {aciklama}
               </p>
             </div>
@@ -129,9 +179,13 @@ export default async function DashboardPage() {
 
       {/* Branding */}
       <div className="mt-10 flex items-center gap-2">
-        <div className="w-5 h-5 rounded-md flex items-center justify-center font-black text-[9px]"
-          style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>A</div>
-        <span className="text-[10px] font-black tracking-[0.25em] uppercase" style={{ color: "var(--ast-text3)" }}>
+        <div
+          className="w-5 h-5 rounded-md flex items-center justify-center font-black text-[10px]"
+          style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705", fontFamily: "inherit" }}
+        >
+          G
+        </div>
+        <span className="text-[10px] font-bold tracking-[0.25em] uppercase" style={{ color: "var(--ast-text3)" }}>
           Gastronom AI Panel
         </span>
       </div>

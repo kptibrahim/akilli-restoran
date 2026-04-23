@@ -453,8 +453,8 @@ export default function MenuClient({
             </div>
           )}
 
-          {/* Garson Çağır */}
-          <button
+          {/* Garson Çağır — sadece masa varsa */}
+          {ilkMasaNo && <button
             onClick={() => garsonDurum === null && setGarsonMenuAcik(true)}
             disabled={garsonDurum !== null}
             className="h-7 px-2.5 rounded-full text-[10px] font-bold border-2 flex items-center gap-1 transition-colors"
@@ -470,7 +470,7 @@ export default function MenuClient({
             <span className="max-w-[80px] truncate">
               {garsonDurum === "geliyor" ? ui.garsonGeliyor : garsonDurum === "bekliyor" ? ui.garsonBekliyor : ui.garsonCagir}
             </span>
-          </button>
+          </button>}
 
         </div>
       </header>
@@ -546,21 +546,23 @@ export default function MenuClient({
                         <span className="font-bold text-gray-800 text-sm mt-1">{urun.fiyat.toFixed(0)} ₺</span>
                       </div>
                     </button>
-                    {/* Sepet butonları — detay butonunun kardeşi, iç içe değil */}
-                    <div className="flex items-center justify-end gap-1 px-2.5 pb-2.5">
-                      {adet > 0 && (
-                        <span className="text-xs font-bold w-4 text-center" style={{ color: restoran.renk }}>{adet}</span>
-                      )}
-                      <button onClick={() => sepeteEkle(urun)}
-                        className="w-7 h-7 rounded-full text-white font-bold text-base flex items-center justify-center"
-                        style={{ backgroundColor: restoran.renk, touchAction: "manipulation" }}>+</button>
-                      <button onClick={() => sepettenCikar(urun)}
-                        disabled={adet === 0}
-                        className="w-7 h-7 rounded-full font-bold text-base flex items-center justify-center border-2 transition-opacity"
-                        style={adet === 0
-                          ? { borderColor: "#e5e7eb", color: "#d1d5db", opacity: 0.4, touchAction: "manipulation" }
-                          : { borderColor: restoran.renk, color: restoran.renk, touchAction: "manipulation" }}>−</button>
-                    </div>
+                    {/* Sepet butonları — sadece masa varsa göster */}
+                    {ilkMasaNo && (
+                      <div className="flex items-center justify-end gap-1 px-2.5 pb-2.5">
+                        {adet > 0 && (
+                          <span className="text-xs font-bold w-4 text-center" style={{ color: restoran.renk }}>{adet}</span>
+                        )}
+                        <button onClick={() => sepeteEkle(urun)}
+                          className="w-7 h-7 rounded-full text-white font-bold text-base flex items-center justify-center"
+                          style={{ backgroundColor: restoran.renk, touchAction: "manipulation" }}>+</button>
+                        <button onClick={() => sepettenCikar(urun)}
+                          disabled={adet === 0}
+                          className="w-7 h-7 rounded-full font-bold text-base flex items-center justify-center border-2 transition-opacity"
+                          style={adet === 0
+                            ? { borderColor: "#e5e7eb", color: "#d1d5db", opacity: 0.4, touchAction: "manipulation" }
+                            : { borderColor: restoran.renk, color: restoran.renk, touchAction: "manipulation" }}>−</button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -569,8 +571,8 @@ export default function MenuClient({
         </>
       )}
 
-      {/* Floating Sepet Butonu */}
-      <div
+      {/* Floating Sepet Butonu — sadece masa varsa */}
+      {ilkMasaNo && <div
         className="fixed right-0 z-30 flex items-center"
         style={{
           bottom: "max(env(safe-area-inset-bottom), 100px)",
@@ -601,7 +603,7 @@ export default function MenuClient({
               style={{ color: restoran.renk }}>{sepetAdet}</span>
           </div>
         </button>
-      </div>
+      </div>}
 
       {/* AI Asistan */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-20" style={{ pointerEvents: "none" }}>
@@ -707,15 +709,17 @@ export default function MenuClient({
                   <p className="text-sm text-orange-600 leading-relaxed">⚠️ {secilenUrun.alerjenler}</p>
                 </div>
               )}
-              <div className="px-5 pt-3 pb-1 border-t border-gray-100">
-                <button
-                  onClick={() => { sepeteEkle(secilenUrun); setSecilenUrun(null); }}
-                  className="w-full h-12 rounded-full text-white font-semibold text-sm flex items-center justify-center gap-2"
-                  style={{ backgroundColor: restoran.renk }}>
-                  <span>+</span>
-                  <span>{ui.sepeteEkle}</span>
-                </button>
-              </div>
+              {ilkMasaNo && (
+                <div className="px-5 pt-3 pb-1 border-t border-gray-100">
+                  <button
+                    onClick={() => { sepeteEkle(secilenUrun); setSecilenUrun(null); }}
+                    className="w-full h-12 rounded-full text-white font-semibold text-sm flex items-center justify-center gap-2"
+                    style={{ backgroundColor: restoran.renk }}>
+                    <span>+</span>
+                    <span>{ui.sepeteEkle}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
