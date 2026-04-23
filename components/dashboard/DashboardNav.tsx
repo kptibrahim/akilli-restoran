@@ -4,9 +4,22 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { useTheme } from "@/components/ThemeProvider";
+import type { Rol } from "./DashboardShell";
 
 type Restoran = { id: string; isim: string; slug: string; renk: string } | null;
 type GarsonCagri = { id: string; masaNo: string; durum: "bekliyor" | "geliyor"; tip: "garson" | "hesap"; olusturuldu: string };
+
+const ROL_LINKLER: Record<Rol, Set<string>> = {
+  yonetici: new Set(["/dashboard", "/dashboard/menu-editor", "/dashboard/siparisler", "/dashboard/kasa", "/dashboard/qr-kodlar", "/dashboard/ayarlar"]),
+  kasiyer: new Set(["/dashboard/siparisler", "/dashboard/kasa"]),
+  mutfak: new Set(["/dashboard/siparisler"]),
+};
+
+const ROL_ETIKET: Record<Rol, string> = {
+  yonetici: "Yönetici",
+  kasiyer: "Kasiyer",
+  mutfak: "Mutfak",
+};
 
 function HomeIcon() {
   return (
@@ -103,11 +116,15 @@ export default function DashboardNav({
   restoran,
   restoranId,
   restoranLogo,
+  rol,
+  onRolDegistir,
 }: {
   userEmail: string;
   restoran: Restoran;
   restoranId?: string;
   restoranLogo?: string | null;
+  rol: Rol;
+  onRolDegistir: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -175,6 +192,8 @@ export default function DashboardNav({
     router.refresh();
   }
 
+  const gorunenLinkler = LINKLER.filter((l) => ROL_LINKLER[rol].has(l.href));
+
   function aktifMi(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
@@ -236,7 +255,7 @@ export default function DashboardNav({
 
         {/* Navigasyon */}
         <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
-          {LINKLER.map(({ href, label, Icon }) => {
+          {gorunenLinkler.map(({ href, label, Icon }) => {
             const aktif = aktifMi(href);
             const rozet = href === "/dashboard/kasa" && kasaBekleyen > 0 ? kasaBekleyen : 0;
             return (
@@ -298,7 +317,14 @@ export default function DashboardNav({
 
         {/* Alt — Kullanıcı Paneli + Çıkış */}
         <div className="px-3 py-4 flex flex-col gap-0.5" style={{ borderTop: "1px solid var(--ast-divider)" }}>
-          {restoran && (
+          {/* Aktif rol badge */}
+          <div className="flex items-center gap-2 px-3.5 py-2 mb-1">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+              style={{ background: "var(--ast-nav-active-bg)", color: "var(--ast-gold)", border: "1px solid var(--ast-divider)" }}>
+              {ROL_ETIKET[rol]}
+            </span>
+          </div>
+          {rol === "yonetici" && restoran && (
             <a href={`/${restoran.slug}`} target="_blank"
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-colors"
               style={{ color: "var(--ast-text3)" }}>
@@ -306,12 +332,23 @@ export default function DashboardNav({
               <span>Müşteri Sayfası</span>
             </a>
           )}
-          <button onClick={cikisYap}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-left transition-colors"
-            style={{ color: "var(--ast-text3)" }}>
-            <LogoutIcon />
-            <span>Çıkış Yap</span>
-          </button>
+          {rol === "yonetici" ? (
+            <button onClick={cikisYap}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-left transition-colors"
+              style={{ color: "var(--ast-text3)" }}>
+              <LogoutIcon />
+              <span>Çıkış Yap</span>
+            </button>
+          ) : (
+            <button onClick={onRolDegistir}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-left transition-colors"
+              style={{ color: "var(--ast-text3)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                <path d="M17 11l-5-5-5 5M17 18l-5-5-5 5" />
+              </svg>
+              <span>Rol Değiştir</span>
+            </button>
+          )}
         </div>
 
         {/* Tema Toggle */}
@@ -385,17 +422,24 @@ export default function DashboardNav({
             >
               {isLight ? <MoonIcon /> : <SunIcon />}
             </button>
-            {restoran && (
+            {rol === "yonetici" && restoran && (
               <a href={`/${restoran.slug}`} target="_blank"
                 className="text-xs px-3 py-1.5 rounded-lg font-medium"
                 style={{ background: "var(--ast-icon-bg)", color: "var(--ast-gold)", border: "1px solid var(--ast-divider)" }}>
                 Menü
               </a>
             )}
-            <button onClick={cikisYap} className="text-xs px-3 py-1.5 rounded-lg"
-              style={{ background: "var(--ast-badge-bg)", color: "var(--ast-text3)", border: "1px solid var(--ast-divider)" }}>
-              Çıkış
-            </button>
+            {rol === "yonetici" ? (
+              <button onClick={cikisYap} className="text-xs px-3 py-1.5 rounded-lg"
+                style={{ background: "var(--ast-badge-bg)", color: "var(--ast-text3)", border: "1px solid var(--ast-divider)" }}>
+                Çıkış
+              </button>
+            ) : (
+              <button onClick={onRolDegistir} className="text-xs px-3 py-1.5 rounded-lg"
+                style={{ background: "var(--ast-badge-bg)", color: "var(--ast-text3)", border: "1px solid var(--ast-divider)" }}>
+                {ROL_ETIKET[rol]} ↩
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -427,7 +471,7 @@ export default function DashboardNav({
       {/* ── MOBİL: Alt Tab Bar ── */}
       <nav className="dash-mobile fixed bottom-0 left-0 right-0 z-20 flex"
         style={{ background: "var(--ast-sidebar-bg)", borderTop: "1px solid var(--ast-divider)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        {LINKLER.map(({ href, label, Icon }) => {
+        {gorunenLinkler.map(({ href, label, Icon }) => {
           const aktif = aktifMi(href);
           return (
             <a key={href} href={href}

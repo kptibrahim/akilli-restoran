@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
-import DashboardNav from "@/components/dashboard/DashboardNav";
+import DashboardShell from "@/components/dashboard/DashboardShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 const LAYOUT_CSS = `
@@ -56,7 +56,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: restoran } = await supabase
     .from("Restoran")
-    .select("id, isim, slug, renk, logo")
+    .select("id, isim, slug, renk, logo, pin_kasiyer, pin_mutfak")
     .eq("userId", user.id)
     .single();
 
@@ -64,17 +64,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <ThemeProvider>
       {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: LAYOUT_CSS }} />
-      <div className="dash-shell">
-        <DashboardNav
-          userEmail={user.email ?? ""}
-          restoran={restoran ?? null}
-          restoranId={restoran?.id}
-          restoranLogo={restoran?.logo ?? null}
-        />
-        <main className="dash-content">
-          {children}
-        </main>
-      </div>
+      <DashboardShell
+        userEmail={user.email ?? ""}
+        restoran={restoran ? { id: restoran.id, isim: restoran.isim, slug: restoran.slug, renk: restoran.renk, logo: restoran.logo } : null}
+        pinKasiyer={(restoran as { pin_kasiyer?: string | null } | null)?.pin_kasiyer ?? null}
+        pinMutfak={(restoran as { pin_mutfak?: string | null } | null)?.pin_mutfak ?? null}
+      >
+        {children}
+      </DashboardShell>
     </ThemeProvider>
   );
 }

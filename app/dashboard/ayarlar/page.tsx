@@ -10,7 +10,7 @@ export default async function AyarlarPage() {
 
   const { data: restoran } = await supabase
     .from("Restoran")
-    .select("id, isim, slug, renk, logo, aciklama, sosyalMedya, selectedLanguages, wifiAdi, wifiSifre")
+    .select("id, isim, slug, renk, logo, aciklama, sosyalMedya, selectedLanguages, wifiAdi, wifiSifre, pin_kasiyer, pin_mutfak")
     .eq("userId", user.id)
     .single();
 

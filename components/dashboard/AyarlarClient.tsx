@@ -69,6 +69,7 @@ type Restoran = {
   logo: string | null; aciklama: string | null;
   sosyalMedya: Record<string, string> | null; selectedLanguages: string[] | null;
   wifiAdi: string | null; wifiSifre: string | null;
+  pin_kasiyer: string | null; pin_mutfak: string | null;
 };
 
 export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
@@ -76,6 +77,40 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
   const menuUrl = `${origin}/${restoran.slug}`;
   const sosyal = restoran.sosyalMedya ?? {};
   const baslangicDiller = restoran.selectedLanguages ?? ["tr"];
+
+  const [pinForm, setPinForm] = useState({
+    pinKasiyer: restoran.pin_kasiyer ?? "",
+    pinMutfak: restoran.pin_mutfak ?? "",
+  });
+  const [pinKaydediliyor, setPinKaydediliyor] = useState(false);
+  const [pinBasarili, setPinBasarili] = useState(false);
+  const [pinHata, setPinHata] = useState("");
+
+  async function pinKaydet() {
+    if (pinForm.pinKasiyer && !/^\d{6}$/.test(pinForm.pinKasiyer)) {
+      setPinHata("Kasiyer PIN tam 6 rakam olmalı"); return;
+    }
+    if (pinForm.pinMutfak && !/^\d{6}$/.test(pinForm.pinMutfak)) {
+      setPinHata("Mutfak PIN tam 6 rakam olmalı"); return;
+    }
+    setPinHata(""); setPinKaydediliyor(true);
+    const res = await fetch("/api/restoran/pins", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pinKasiyer: pinForm.pinKasiyer || null,
+        pinMutfak: pinForm.pinMutfak || null,
+      }),
+    });
+    setPinKaydediliyor(false);
+    if (res.ok) {
+      setPinBasarili(true);
+      setTimeout(() => setPinBasarili(false), 3000);
+    } else {
+      const json = await res.json();
+      setPinHata(json.error ?? "Kayıt başarısız");
+    }
+  }
 
   const [duzenle, setDuzenle] = useState(false);
   const [kaydediliyor, setKaydediliyor] = useState(false);
@@ -387,6 +422,72 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
           className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
           style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
           {kaydediliyor ? "Kaydediliyor..." : "Wi-Fi Bilgilerini Kaydet"}
+        </button>
+      </div>
+
+      {/* Personel PIN Kodları */}
+      <div className="p-5 mb-4" style={cardStyle}>
+        <h2 className="font-bold mb-1 flex items-center gap-2" style={{ color: "var(--ast-text1)" }}>
+          <span style={{ color: "var(--ast-gold)" }}>🔐</span> Personel PIN Kodları
+        </h2>
+        <p className="text-xs mb-4" style={{ color: "var(--ast-text2)" }}>
+          Kasiyer ve mutfak personeli bu PIN ile panele giriş yapar. Boş bırakırsan o rol devre dışı kalır.
+        </p>
+        <div className="space-y-3">
+          {([
+            { label: "Kasiyer PIN", key: "pinKasiyer" as const, aciklama: "Siparişler + Kasa erişimi" },
+            { label: "Mutfak PIN", key: "pinMutfak" as const, aciklama: "Sadece Siparişler erişimi" },
+          ] as const).map(({ label, key, aciklama }) => (
+            <div key={key}>
+              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--ast-text2)" }}>
+                {label}{" "}
+                <span className="font-normal" style={{ color: "var(--ast-text3)" }}>— {aciklama}</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={pinForm[key]}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                    setPinForm((p) => ({ ...p, [key]: val }));
+                  }}
+                  placeholder="6 haneli PIN (örn. 123456)"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                {pinForm[key] && (
+                  <button
+                    onClick={() => setPinForm((p) => ({ ...p, [key]: "" }))}
+                    className="px-3 rounded-xl text-xs font-semibold shrink-0"
+                    style={{ border: "1px solid var(--ast-error-border)", color: "var(--ast-error-text)", background: "var(--ast-error-bg)" }}
+                  >
+                    Sil
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {pinHata && (
+          <p className="text-xs mt-3 p-2.5 rounded-xl"
+            style={{ background: "var(--ast-error-bg)", border: "1px solid var(--ast-error-border)", color: "var(--ast-error-text)" }}>
+            {pinHata}
+          </p>
+        )}
+        {pinBasarili && (
+          <p className="text-xs mt-3 p-2.5 rounded-xl"
+            style={{ background: "var(--ast-success-bg)", border: "1px solid var(--ast-success-border)", color: "var(--ast-success-text)" }}>
+            ✓ PIN kodları kaydedildi
+          </p>
+        )}
+        <button
+          onClick={pinKaydet}
+          disabled={pinKaydediliyor}
+          className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}
+        >
+          {pinKaydediliyor ? "Kaydediliyor..." : "PIN Kodlarını Kaydet"}
         </button>
       </div>
 
