@@ -332,7 +332,7 @@ export default function OnboardingClient({
             <button onClick={kaydet} disabled={yukleniyor} style={{ ...altinButon, opacity: yukleniyor ? 0.6 : 1 }}>
               {yukleniyor ? "Kaydediliyor..." : "Kaydet ve Devam Et →"}
             </button>
-            <button onClick={() => window.location.href = "/dashboard"} style={ikinciButon}>
+            <button onClick={() => setAdim("menu")} style={ikinciButon}>
               Daha Sonra
             </button>
           </div>
