@@ -118,7 +118,6 @@ export default function KayitPage() {
         <div className="inline-flex flex-col items-center">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 relative"
             style={{ background: "linear-gradient(135deg, #C89434 0%, #E8B84B 50%, #C89434 100%)", boxShadow: "0 0 40px rgba(200,148,52,0.35)" }}>
-            <span className="text-2xl font-black" style={{ color: "#0A0705" }}>A</span>
             <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full" style={{ background: "#E8923A", boxShadow: "0 0 8px rgba(232,146,58,0.8)" }} />
           </div>
           <h1 className="text-3xl font-black tracking-[0.2em]" style={{ color: "#F5E6C8" }}>

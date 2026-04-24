@@ -10,7 +10,7 @@ type Restoran = { id: string; isim: string; slug: string; renk: string } | null;
 type GarsonCagri = { id: string; masaNo: string; durum: "bekliyor" | "geliyor"; tip: "garson" | "hesap"; olusturuldu: string };
 
 const ROL_LINKLER: Record<Rol, Set<string>> = {
-  yonetici: new Set(["/dashboard", "/dashboard/menu-editor", "/dashboard/siparisler", "/dashboard/kasa", "/dashboard/qr-kodlar", "/dashboard/ayarlar"]),
+  yonetici: new Set(["/dashboard", "/dashboard/menu-editor", "/dashboard/siparisler", "/dashboard/kasa", "/dashboard/qr-kodlar", "/dashboard/ayarlar", "/dashboard/analitik"]),
   kasiyer: new Set(["/dashboard/siparisler", "/dashboard/kasa"]),
   mutfak: new Set(["/dashboard/siparisler"]),
 };
@@ -71,6 +71,14 @@ function GearIcon() {
     </svg>
   );
 }
+function AnalitikIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+      <path d="M3 20l4-8 4 4 4-6 4 4" />
+      <path d="M3 4v16h18" />
+    </svg>
+  );
+}
 function UserIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
@@ -107,6 +115,7 @@ const LINKLER = [
   { href: "/dashboard/menu-editor", label: "Menü", Icon: MenuIcon },
   { href: "/dashboard/siparisler", label: "Siparişler", Icon: OrderIcon },
   { href: "/dashboard/kasa", label: "Kasa", Icon: KasaIcon },
+  { href: "/dashboard/analitik", label: "Analitik", Icon: AnalitikIcon },
   { href: "/dashboard/qr-kodlar", label: "QR Kodlar", Icon: QrIcon },
   { href: "/dashboard/ayarlar", label: "Ayarlar", Icon: GearIcon },
 ];
@@ -135,6 +144,7 @@ export default function DashboardNav({
   const [cagrilar, setCagrilar] = useState<GarsonCagri[]>([]);
   const [yukleniyor, setYukleniyor] = useState<string | null>(null);
   const [kasaBekleyen, setKasaBekleyen] = useState(0);
+  const [siparisBekleyen, setSiparisBekleyen] = useState(0);
 
   useEffect(() => {
     function kasaSay() {
@@ -154,6 +164,27 @@ export default function DashboardNav({
       clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!restoranId) return;
+    async function siparisSay() {
+      const { count } = await supabase
+        .from("Siparis")
+        .select("id", { count: "exact", head: true })
+        .eq("restoranId", restoranId)
+        .eq("durum", "bekliyor");
+      setSiparisBekleyen(count ?? 0);
+    }
+    siparisSay();
+    const sipKanal = supabase.channel(`nav-siparis-${restoranId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "Siparis" }, siparisSay)
+      .subscribe();
+    const sipPoller = setInterval(siparisSay, 8000);
+    return () => {
+      supabase.removeChannel(sipKanal);
+      clearInterval(sipPoller);
+    };
+  }, [restoranId]);
 
   useEffect(() => {
     if (!restoranId) return;
@@ -222,7 +253,6 @@ export default function DashboardNav({
                 boxShadow: "0 4px 16px rgba(200,148,52,0.35)",
               }}
             >
-              <span style={{ fontSize: 18, fontWeight: 900, color: "#0A0705", fontFamily: "inherit", lineHeight: 1 }}>G</span>
             </div>
           </div>
           <div>
@@ -257,7 +287,9 @@ export default function DashboardNav({
         <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
           {gorunenLinkler.map(({ href, label, Icon }) => {
             const aktif = aktifMi(href);
-            const rozet = href === "/dashboard/kasa" && kasaBekleyen > 0 ? kasaBekleyen : 0;
+            const rozet =
+              href === "/dashboard/kasa" && kasaBekleyen > 0 ? kasaBekleyen :
+              href === "/dashboard/siparisler" && siparisBekleyen > 0 ? siparisBekleyen : 0;
             return (
               <a
                 key={href}
@@ -278,7 +310,7 @@ export default function DashboardNav({
                 {rozet > 0 && (
                   <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                     style={{ background: "var(--ast-gold)", color: "#0A0705" }}>
-                    {rozet}
+                    {rozet > 99 ? "99+" : rozet}
                   </span>
                 )}
               </a>
@@ -401,7 +433,6 @@ export default function DashboardNav({
                 flexShrink: 0,
               }}
             >
-              <span style={{ fontSize: 15, fontWeight: 900, color: "#0A0705", fontFamily: "inherit", lineHeight: 1 }}>G</span>
             </div>
             <div>
               <p
@@ -473,11 +504,22 @@ export default function DashboardNav({
         style={{ background: "var(--ast-sidebar-bg)", borderTop: "1px solid var(--ast-divider)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         {gorunenLinkler.map(({ href, label, Icon }) => {
           const aktif = aktifMi(href);
+          const mobRozet =
+            href === "/dashboard/kasa" && kasaBekleyen > 0 ? kasaBekleyen :
+            href === "/dashboard/siparisler" && siparisBekleyen > 0 ? siparisBekleyen : 0;
           return (
             <a key={href} href={href}
-              className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5"
+              className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 relative"
               style={{ color: aktif ? "var(--ast-nav-active-color)" : "var(--ast-text3)" }}>
-              <Icon />
+              <span className="relative">
+                <Icon />
+                {mobRozet > 0 && (
+                  <span className="absolute -top-1.5 -right-2 text-[9px] font-black px-1 py-px rounded-full min-w-[16px] text-center leading-none"
+                    style={{ background: "var(--ast-gold)", color: "#0A0705" }}>
+                    {mobRozet > 99 ? "99+" : mobRozet}
+                  </span>
+                )}
+              </span>
               <span className="text-[10px] font-semibold">{label}</span>
             </a>
           );
