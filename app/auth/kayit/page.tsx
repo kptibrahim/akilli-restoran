@@ -154,7 +154,7 @@ export default function KayitPage() {
                 </p>
               </div>
               <a
-                href="/dashboard"
+                href="/dashboard/onboarding"
                 className="block w-full py-3.5 rounded-xl font-bold text-sm tracking-widest uppercase text-center transition-opacity hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #C89434 0%, #E8B84B 50%, #C8832A 100%)", color: "#0A0705", boxShadow: "0 4px 20px rgba(200,148,52,0.35)" }}>
                 Dashboard'a Git
