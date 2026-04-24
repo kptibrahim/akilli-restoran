@@ -49,21 +49,23 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
   const [ready, setReady] = useState(false);
   const [kopyalandi, setKopyalandi] = useState(false);
 
+  const storageKey = `gastronom_masalar_${slug}`;
+
   useEffect(() => {
     setBaseUrl(window.location.origin);
     try {
-      const kayitli = localStorage.getItem("gastronom_masalar");
+      const kayitli = localStorage.getItem(storageKey);
       if (kayitli) setMasalar(JSON.parse(kayitli));
-    } catch { localStorage.removeItem("gastronom_masalar"); }
+    } catch { localStorage.removeItem(storageKey); }
     setReady(true);
-  }, []);
+  }, [storageKey]);
 
   const anaKod = masalar[0] ?? null;
   const digerKodlar = masalar.slice(1);
 
   function kaydet(liste: Masa[]) {
     setMasalar(liste);
-    localStorage.setItem("gastronom_masalar", JSON.stringify(liste));
+    localStorage.setItem(storageKey, JSON.stringify(liste));
   }
 
   function masaEkle() {
@@ -227,8 +229,8 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
             </div>
             <div className="flex flex-col items-center p-5 gap-3">
               <div className="p-3 rounded-xl" style={{ background: "#FFFFFF", border: "1px solid var(--ast-divider)" }}>
-                <QRCodeCanvas value={qrUrl(anaKod)} size={160} marginSize={1}
-                  {...(logo ? { imageSettings: { src: logo, width: 36, height: 36, excavate: true } } : {})} />
+                <QRCodeSVG value={qrUrl(anaKod)} size={200} marginSize={1}
+                  {...(logo ? { imageSettings: { src: logo, width: 44, height: 44, excavate: true } } : {})} />
               </div>
               <p className="text-[10px] text-center break-all px-2" style={{ color: "var(--ast-text3)" }}>{qrUrl(anaKod)}</p>
               <div className="flex gap-2 w-full">
@@ -309,8 +311,8 @@ export default function QrKodlarClient({ slug, logo }: { slug: string; logo: str
                   style={{ background: "var(--ast-icon-bg)", border: "1px solid var(--ast-divider)" }}>
                   {/* Küçük QR */}
                   <div className="shrink-0 p-1.5 rounded-xl" style={{ background: "#FFFFFF" }}>
-                    <QRCodeCanvas value={qrUrl(masa)} size={64} marginSize={1}
-                      {...(logo ? { imageSettings: { src: logo, width: 16, height: 16, excavate: true } } : {})} />
+                    <QRCodeSVG value={qrUrl(masa)} size={80} marginSize={1}
+                      {...(logo ? { imageSettings: { src: logo, width: 20, height: 20, excavate: true } } : {})} />
                   </div>
                   {/* İsim + butonlar */}
                   <div className="flex-1 min-w-0">
