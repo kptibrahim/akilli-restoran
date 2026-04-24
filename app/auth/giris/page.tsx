@@ -33,7 +33,7 @@ export default async function GirisPage({
 
       {/* Geri butonu */}
       <a
-        href="/"
+        href="https://akilli-restoran-landing.vercel.app"
         className="absolute top-5 left-5 z-10 flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-70"
         style={{ color: "rgba(245,230,200,0.5)" }}
       >
