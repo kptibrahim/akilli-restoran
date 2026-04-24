@@ -30,6 +30,19 @@ export default async function GirisPage({
       style={{ background: "linear-gradient(135deg, #1C1510 0%, #261C0F 55%, #2E2214 100%)" }}
     >
       <ClearPinSession />
+
+      {/* Geri butonu */}
+      <a
+        href="/"
+        className="absolute top-5 left-5 z-10 flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-70"
+        style={{ color: "rgba(245,230,200,0.5)" }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M12 5l-7 7 7 7" />
+        </svg>
+        Ana Sayfa
+      </a>
+
       {/* Dekoratif yıldız noktaları */}
       <div className="absolute inset-0 pointer-events-none" style={{ overflow: "hidden" }}>
         {[
