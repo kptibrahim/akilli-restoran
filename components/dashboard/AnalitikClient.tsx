@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { DEFAULT_TZ, tzDateTime, tzTime, tzDateKey, tzDateLabel } from "@/lib/timezone";
 
 type DonemKey = "gunluk" | "haftalik" | "aylik";
 type Urun = { isim: string; adet: number; fiyat: number };
@@ -58,23 +59,23 @@ function weekNum(d: Date): number {
   return 1 + Math.round(((date.getTime() - w1.getTime()) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7);
 }
 
-function grupla(siparisler: Siparis[], donem: DonemKey): ArsivGrup[] {
+function grupla(siparisler: Siparis[], donem: DonemKey, tz: string): ArsivGrup[] {
   const map: Record<string, ArsivGrup> = {};
   for (const s of siparisler) {
     const d = new Date(isoFix(s.createdAt));
     let key: string, label: string;
     if (donem === "gunluk") {
-      key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      label = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+      key = tzDateKey(s.createdAt, tz);
+      label = tzDateLabel(s.createdAt, tz, { day: "numeric", month: "long", year: "numeric" });
     } else if (donem === "haftalik") {
       const day = d.getDay();
       const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - (day === 0 ? 6 : day - 1));
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
       key = `${d.getFullYear()}-W${String(weekNum(d)).padStart(2, "0")}`;
-      label = `${mon.toLocaleDateString("tr-TR", { day: "numeric", month: "short" })} – ${sun.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })}`;
+      label = `${mon.toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: tz })} – ${sun.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric", timeZone: tz })}`;
     } else {
       key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      label = d.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+      label = tzDateLabel(s.createdAt, tz, { month: "long", year: "numeric" });
     }
     if (!map[key]) map[key] = { key, label, siparisler: [], ciro: 0, count: 0 };
     map[key].siparisler.push(s);
@@ -84,19 +85,16 @@ function grupla(siparisler: Siparis[], donem: DonemKey): ArsivGrup[] {
   return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
 }
 
-function csvIndir(label: string, siparisler: Siparis[]) {
+function csvIndir(label: string, siparisler: Siparis[], tz: string) {
   const rows = [
     ["Tarih/Saat", "Masa", "Urunler", "Toplam(TL)", "Odeme Yontemi"],
-    ...siparisler.map(s => {
-      const d = new Date(isoFix(s.createdAt));
-      return [
-        d.toLocaleString("tr-TR"),
-        s.masaNo,
-        s.urunler.map(u => `${u.adet}x ${u.isim}`).join(" | "),
-        s.toplam.toFixed(2),
-        s.odemeYontemi ?? "",
-      ];
-    }),
+    ...siparisler.map(s => [
+      tzDateTime(s.createdAt, tz),
+      s.masaNo,
+      s.urunler.map(u => `${u.adet}x ${u.isim}`).join(" | "),
+      s.toplam.toFixed(2),
+      s.odemeYontemi ?? "",
+    ]),
   ];
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
   const a = document.createElement("a");
@@ -105,7 +103,7 @@ function csvIndir(label: string, siparisler: Siparis[]) {
   a.click();
 }
 
-async function pdfIndir(label: string, siparisler: Siparis[]) {
+async function pdfIndir(label: string, siparisler: Siparis[], tz: string) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
@@ -138,9 +136,8 @@ async function pdfIndir(label: string, siparisler: Siparis[]) {
     doc.rect(14, y, totalW, 7.5, "F");
     doc.setTextColor(20, 20, 20);
     doc.setFont("helvetica", "normal");
-    const d = new Date(isoFix(s.createdAt));
     const row = [
-      d.toLocaleString("tr-TR"),
+      trFix(tzDateTime(s.createdAt, tz)),
       trFix(s.masaNo),
       trFix(s.urunler.map(u => `${u.adet}x ${u.isim}`).join(", ")),
       trFix(s.notlar ?? ""),
@@ -164,7 +161,7 @@ async function pdfIndir(label: string, siparisler: Siparis[]) {
   doc.save(`rapor-${label.replace(/[\s/–]/g, "-")}.pdf`);
 }
 
-function pngIndir(label: string, siparisler: Siparis[]) {
+function pngIndir(label: string, siparisler: Siparis[], tz: string) {
   const pad = 28;
   const cols = [
     { label: "Tarih/Saat", w: 130 },
@@ -207,9 +204,8 @@ function pngIndir(label: string, siparisler: Siparis[]) {
     const ry = titleH + headH + idx * rowH;
     ctx.fillStyle = idx % 2 === 0 ? "#151210" : "#1c1612";
     ctx.fillRect(pad, ry, totalW - pad * 2, rowH);
-    const d = new Date(isoFix(s.createdAt));
     const row = [
-      d.toLocaleString("tr-TR"),
+      tzDateTime(s.createdAt, tz),
       s.masaNo,
       s.urunler.map(u => `${u.adet}x ${u.isim}`).join(", "),
       s.notlar ?? "",
@@ -250,7 +246,7 @@ const cardStyle = {
 const tabAktif = { background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" };
 const tabPasif = { color: "var(--ast-text2)", background: "transparent" };
 
-export default function AnalitikClient({ restoranId }: { restoranId: string }) {
+export default function AnalitikClient({ restoranId, timezone = DEFAULT_TZ }: { restoranId: string; timezone?: string }) {
   const [donem, setDonem] = useState<DonemKey>("gunluk");
   const [siparisler, setSiparisler] = useState<Siparis[]>([]);
   const [chatLoglar, setChatLoglar] = useState<ChatLog[]>([]);
@@ -305,7 +301,7 @@ export default function AnalitikClient({ restoranId }: { restoranId: string }) {
   const enCok = Object.values(urunSayim).sort((a, b) => b.adet - a.adet).slice(0, 5);
   const maxAdet = enCok[0]?.adet ?? 1;
 
-  const arsivGruplar: ArsivGrup[] = arsivSiparisler.length > 0 ? grupla(arsivSiparisler, arsivDonem) : [];
+  const arsivGruplar: ArsivGrup[] = arsivSiparisler.length > 0 ? grupla(arsivSiparisler, arsivDonem, timezone) : [];
 
   const istatistikler = [
     { label: "Toplam Sipariş", deger: siparisler.length, ikon: "◳" },
@@ -504,9 +500,9 @@ export default function AnalitikClient({ restoranId }: { restoranId: string }) {
                       </div>
                       <div className="flex items-center gap-1.5">
                         {[
-                          { label: "CSV", fn: () => csvIndir(grup.label, grup.siparisler) },
-                          { label: "PDF", fn: () => pdfIndir(grup.label, grup.siparisler) },
-                          { label: "PNG", fn: () => pngIndir(grup.label, grup.siparisler) },
+                          { label: "CSV", fn: () => csvIndir(grup.label, grup.siparisler, timezone) },
+                          { label: "PDF", fn: () => pdfIndir(grup.label, grup.siparisler, timezone) },
+                          { label: "PNG", fn: () => pngIndir(grup.label, grup.siparisler, timezone) },
                         ].map(({ label, fn }) => (
                           <button key={label} onClick={fn}
                             className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition-opacity hover:opacity-70"

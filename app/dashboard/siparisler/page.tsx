@@ -35,16 +35,16 @@ const DURUM_CONFIG: Record<string, {
   teslim:        { etiket: "🚀 Teslim",           textVar: "--ast-text3",        bgVar: "--ast-badge-bg",   borderVar: "--ast-divider" },
 };
 
-function saatFormat(iso: string) {
+function saatFormat(iso: string, tz: string) {
   const s = iso.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + "Z";
-  return new Date(s).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return new Date(s).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz });
 }
 
-function csvIndir(siparisler: Siparis[]) {
+function csvIndir(siparisler: Siparis[], tz: string) {
   const satirlar = [
     ["Saat", "Masa", "Ürünler", "Notlar", "Durum", "Toplam (₺)"],
     ...siparisler.map((s) => [
-      saatFormat(s.createdAt),
+      saatFormat(s.createdAt, tz),
       s.masaNo,
       s.urunler.map((u) => `${u.adet}x ${u.isim}`).join(" | "),
       s.notlar ?? "",
@@ -63,7 +63,7 @@ function csvIndir(siparisler: Siparis[]) {
   URL.revokeObjectURL(url);
 }
 
-async function pdfIndir(siparisler: Siparis[]) {
+async function pdfIndir(siparisler: Siparis[], tz: string) {
   const { jsPDF } = await import("jspdf");
   const tarih = new Date().toLocaleDateString("tr-TR");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -99,7 +99,7 @@ async function pdfIndir(siparisler: Siparis[]) {
     doc.setFont("helvetica", "normal");
     const durum = trFix((DURUM_CONFIG[s.durum]?.etiket ?? s.durum).replace(/[^\w\s\-.,]/g, ""));
     const row = [
-      saatFormat(s.createdAt),
+      saatFormat(s.createdAt, tz),
       trFix(s.masaNo),
       trFix(s.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", ")),
       trFix(s.notlar ?? ""),
@@ -123,7 +123,7 @@ async function pdfIndir(siparisler: Siparis[]) {
   doc.save(`siparisler-${tarih.replace(/\./g, "-")}.pdf`);
 }
 
-function pngIndir(siparisler: Siparis[]) {
+function pngIndir(siparisler: Siparis[], tz: string) {
   const pad = 28;
   const cols = [
     { label: "Saat", w: 72 },
@@ -168,7 +168,7 @@ function pngIndir(siparisler: Siparis[]) {
     ctx.fillStyle = idx % 2 === 0 ? "#151210" : "#1c1612";
     ctx.fillRect(pad, ry, totalW - pad * 2, rowH);
     const row = [
-      saatFormat(s.createdAt),
+      saatFormat(s.createdAt, tz),
       s.masaNo,
       s.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", "),
       s.notlar ?? "",
@@ -205,6 +205,7 @@ export default function SiparislerPage() {
   const [siparisler, setSiparisler] = useState<Siparis[]>([]);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [restoranId, setRestoranId] = useState<string | null>(null);
+  const [tz, setTz] = useState("Europe/Istanbul");
 
   const [arsivAcik, setArsivAcik] = useState(false);
   const [arsivSiparisler, setArsivSiparisler] = useState<Siparis[]>([]);
@@ -216,8 +217,11 @@ export default function SiparislerPage() {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("Restoran").select("id").eq("userId", user.id).single().then(({ data }) => {
-        if (data) setRestoranId(data.id);
+      supabase.from("Restoran").select("id, timezone").eq("userId", user.id).single().then(({ data }) => {
+        if (data) {
+          setRestoranId(data.id);
+          setTz((data.timezone as string | null) ?? "Europe/Istanbul");
+        }
       });
     });
   }, []);
@@ -484,7 +488,7 @@ export default function SiparislerPage() {
                 <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--ast-text3)" }}>Arşivi İndir</p>
                 <div className="grid grid-cols-3 gap-2">
                   <button
-                    onClick={() => csvIndir(arsivSiparisler)}
+                    onClick={() => csvIndir(arsivSiparisler, tz)}
                     className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-opacity hover:opacity-80"
                     style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", color: "var(--ast-text1)" }}
                   >
@@ -498,7 +502,7 @@ export default function SiparislerPage() {
                     CSV
                   </button>
                   <button
-                    onClick={() => pdfIndir(arsivSiparisler)}
+                    onClick={() => pdfIndir(arsivSiparisler, tz)}
                     className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-opacity hover:opacity-80"
                     style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", color: "var(--ast-text1)" }}
                   >
@@ -510,7 +514,7 @@ export default function SiparislerPage() {
                     PDF
                   </button>
                   <button
-                    onClick={() => pngIndir(arsivSiparisler)}
+                    onClick={() => pngIndir(arsivSiparisler, tz)}
                     className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-opacity hover:opacity-80"
                     style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", color: "var(--ast-text1)" }}
                   >
@@ -548,7 +552,7 @@ export default function SiparislerPage() {
                         style={{ borderBottom: "1px solid var(--ast-divider)" }}>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>Masa {s.masaNo}</span>
-                          <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(s.createdAt)}</span>
+                          <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(s.createdAt, tz)}</span>
                         </div>
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                           style={{ color: `var(${d.textVar})`, background: `var(${d.bgVar})` }}>

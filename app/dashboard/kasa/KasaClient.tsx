@@ -40,9 +40,9 @@ type MasaGrubu = {
 
 type OdemeYontemi = "nakit" | "kart" | "yemek-ceki" | "diger";
 
-function saatFormat(iso: string) {
+function saatFormat(iso: string, tz: string) {
   const s = iso.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + "Z";
-  return new Date(s).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return new Date(s).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz });
 }
 
 function grupla(kayitlar: KasaKayit[]): MasaGrubu[] {
@@ -75,11 +75,11 @@ function grupla(kayitlar: KasaKayit[]): MasaGrubu[] {
 
 // ── İndirme fonksiyonları (aynen korundu) ──
 
-function csvIndirKasa(arsiv: KasaKayit[]) {
+function csvIndirKasa(arsiv: KasaKayit[], tz: string) {
   const satirlar = [
     ["Ödeme Saati", "Masa", "Yöntem", "Ürünler", "Notlar", "Toplam (₺)"],
     ...arsiv.map((k) => [
-      saatFormat(k.odendiTarih ?? k.createdAt),
+      saatFormat(k.odendiTarih ?? k.createdAt, tz),
       k.masaNo,
       k.odemeYontemi ?? "",
       k.urunler.map((u) => `${u.adet}x ${u.isim}`).join(" | "),
@@ -98,7 +98,7 @@ function csvIndirKasa(arsiv: KasaKayit[]) {
   URL.revokeObjectURL(url);
 }
 
-async function pdfIndirKasa(arsiv: KasaKayit[]) {
+async function pdfIndirKasa(arsiv: KasaKayit[], tz: string) {
   const { jsPDF } = await import("jspdf");
   const tarih = new Date().toLocaleDateString("tr-TR");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -133,7 +133,7 @@ async function pdfIndirKasa(arsiv: KasaKayit[]) {
     doc.setTextColor(20, 20, 20);
     doc.setFont("helvetica", "normal");
     const row = [
-      saatFormat(k.odendiTarih ?? k.createdAt),
+      saatFormat(k.odendiTarih ?? k.createdAt, tz),
       trFix(k.masaNo),
       trFix(k.odemeYontemi ?? ""),
       trFix(k.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", ")),
@@ -157,7 +157,7 @@ async function pdfIndirKasa(arsiv: KasaKayit[]) {
   doc.save(`kasa-${tarih.replace(/\./g, "-")}.pdf`);
 }
 
-function pngIndirKasa(arsiv: KasaKayit[]) {
+function pngIndirKasa(arsiv: KasaKayit[], tz: string) {
   const pad = 28;
   const cols = [
     { label: "Ödeme Saati", w: 100 },
@@ -201,7 +201,7 @@ function pngIndirKasa(arsiv: KasaKayit[]) {
     ctx.fillStyle = idx % 2 === 0 ? "#151210" : "#1c1612";
     ctx.fillRect(pad, ry, totalW - pad * 2, rowH);
     const row = [
-      saatFormat(k.odendiTarih ?? k.createdAt),
+      saatFormat(k.odendiTarih ?? k.createdAt, tz),
       k.masaNo,
       k.odemeYontemi ?? "",
       k.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", "),
@@ -245,6 +245,7 @@ const YONTEM_ETIKET: Record<OdemeYontemi, string> = {
 
 export default function KasaClient() {
   const [restoranId, setRestoranId] = useState<string | null>(null);
+  const [tz, setTz] = useState("Europe/Istanbul");
   const [kayitlar, setKayitlar] = useState<KasaKayit[]>([]);
   const [arsiv, setArsiv] = useState<KasaKayit[]>([]);
   const [arama, setArama] = useState("");
@@ -261,8 +262,11 @@ export default function KasaClient() {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("Restoran").select("id").eq("userId", user.id).single().then(({ data }) => {
-        if (data) setRestoranId(data.id);
+      supabase.from("Restoran").select("id, timezone").eq("userId", user.id).single().then(({ data }) => {
+        if (data) {
+          setRestoranId(data.id);
+          setTz((data.timezone as string | null) ?? "Europe/Istanbul");
+        }
       });
     });
   }, []);
@@ -471,7 +475,7 @@ export default function KasaClient() {
                   )}
                 </div>
                 <span className="text-xs" style={{ color: "var(--ast-text3)" }}>
-                  {saatFormat(g.ilkCreated)}
+                  {saatFormat(g.ilkCreated, tz)}
                 </span>
               </div>
 
@@ -532,7 +536,7 @@ export default function KasaClient() {
                     style={{ borderBottom: "1px solid var(--ast-divider)" }}>
                     <div className="flex items-center gap-2">
                       <span className="font-black text-base" style={{ color: "var(--ast-text1)" }}>Masa {k.masaNo}</span>
-                      <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odendiTarih ?? k.createdAt)}</span>
+                      <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odendiTarih ?? k.createdAt, tz)}</span>
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                       style={{ background: "var(--ast-success-bg)", color: "var(--ast-success-text)" }}>
@@ -657,9 +661,9 @@ export default function KasaClient() {
                 <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--ast-text3)" }}>Arşivi İndir</p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: "CSV", fn: () => csvIndirKasa(arsiv) },
-                    { label: "PDF", fn: () => pdfIndirKasa(arsiv) },
-                    { label: "PNG", fn: () => pngIndirKasa(arsiv) },
+                    { label: "CSV", fn: () => csvIndirKasa(arsiv, tz) },
+                    { label: "PDF", fn: () => pdfIndirKasa(arsiv, tz) },
+                    { label: "PNG", fn: () => pngIndirKasa(arsiv, tz) },
                   ].map(({ label, fn }) => (
                     <button key={label} onClick={fn}
                       className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-opacity hover:opacity-80"
@@ -692,7 +696,7 @@ export default function KasaClient() {
                       style={{ borderBottom: "1px solid var(--ast-divider)" }}>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>Masa {k.masaNo}</span>
-                        <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odendiTarih ?? k.createdAt)}</span>
+                        <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odendiTarih ?? k.createdAt, tz)}</span>
                       </div>
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                         style={{ background: "var(--ast-success-bg)", color: "var(--ast-success-text)" }}>

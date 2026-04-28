@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import MenuGorselImport from "./MenuGorselImport";
+import { TIMEZONE_SECENEKLERI, DEFAULT_TZ } from "@/lib/timezone";
 
 type Adim = "form" | "menu" | "gorsel";
 
@@ -28,6 +29,7 @@ export default function OnboardingClient({
     adres: "",
     acilisSaati: "",
     kapanisSaati: "",
+    timezone: DEFAULT_TZ,
   });
 
   function guncelle(alan: keyof typeof form, deger: string) {
@@ -70,6 +72,7 @@ export default function OnboardingClient({
           renk: form.renk,
           logo: form.logo || null,
           sosyalMedya: Object.keys(sosyalMedya).length > 0 ? sosyalMedya : null,
+          timezone: form.timezone,
         }),
       });
       if (!res.ok) { setHata("Kaydedilemedi. Tekrar deneyin."); return; }
@@ -296,6 +299,20 @@ export default function OnboardingClient({
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Zaman dilimi */}
+          <div>
+            <label style={labelStyle}>Zaman Dilimi (Ülke / Şehir)</label>
+            <select
+              value={form.timezone}
+              onChange={(e) => guncelle("timezone", e.target.value)}
+              style={{ ...inputStyle, cursor: "pointer" }}
+            >
+              {TIMEZONE_SECENEKLERI.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Sosyal medya & iletişim */}

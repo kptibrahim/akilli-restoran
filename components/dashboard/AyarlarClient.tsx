@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import MenuGorselImport from "./MenuGorselImport";
 import { DIL_BAYRAK, TUM_DILLER } from "@/lib/translate";
+import { TIMEZONE_SECENEKLERI, DEFAULT_TZ } from "@/lib/timezone";
 
 function DilSecici({ seciliDiller, onToggle, renk }: { seciliDiller: string[]; onToggle: (kod: string) => void; renk: string }) {
   const [acik, setAcik] = useState(false);
@@ -70,6 +71,7 @@ type Restoran = {
   sosyalMedya: Record<string, string> | null; selectedLanguages: string[] | null;
   wifiAdi: string | null; wifiSifre: string | null;
   pin_yonetici: string | null; pin_kasiyer: string | null; pin_mutfak: string | null;
+  timezone: string | null;
 };
 
 export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
@@ -153,6 +155,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
     website: sosyal.website ?? "", adres: sosyal.adres ?? "",
     acilisSaati: sosyal.acilisSaati ?? "", kapanisSaati: sosyal.kapanisSaati ?? "",
     wifiAdi: restoran.wifiAdi ?? "", wifiSifre: restoran.wifiSifre ?? "",
+    timezone: restoran.timezone ?? DEFAULT_TZ,
   });
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -217,6 +220,7 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
         renk: form.renk, sosyalMedya: Object.keys(sosyalMedya).length > 0 ? sosyalMedya : null,
         selectedLanguages: seciliDiller,
         wifiAdi: form.wifiAdi || null, wifiSifre: form.wifiSifre || null,
+        timezone: form.timezone,
       }),
     });
     const json = await res.json();
@@ -294,6 +298,9 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
                 <p className="text-sm" style={{ color: "var(--ast-text3)" }}>/{restoran.slug}</p>
               </div>
             </div>
+            <div className="mt-2 text-xs" style={{ color: "var(--ast-text3)" }}>
+              🌍 {TIMEZONE_SECENEKLERI.find(t => t.value === form.timezone)?.label ?? form.timezone}
+            </div>
             {(form.instagram || form.facebook || form.whatsapp || form.website || form.adres || form.acilisSaati) && (
               <div className="grid grid-cols-2 gap-2 text-xs" style={{ color: "var(--ast-text2)" }}>
                 {(form.acilisSaati || form.kapanisSaati) && (
@@ -370,6 +377,20 @@ export default function AyarlarClient({ restoran }: { restoran: Restoran }) {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Zaman Dilimi */}
+            <div>
+              <p className="text-xs font-semibold mb-1" style={{ color: "var(--ast-text2)" }}>Zaman Dilimi</p>
+              <select
+                value={form.timezone}
+                onChange={(e) => guncelle("timezone", e.target.value)}
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                {TIMEZONE_SECENEKLERI.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
 
             {/* Sosyal Medya */}

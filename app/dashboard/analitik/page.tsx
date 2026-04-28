@@ -7,8 +7,9 @@ export default async function AnalitikPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/giris");
 
-  const { data: restoran } = await supabase.from("Restoran").select("id").eq("userId", user.id).single();
+  const { data: restoran } = await supabase.from("Restoran").select("id, timezone").eq("userId", user.id).single();
   const restoranId = restoran?.id ?? "";
+  const timezone = (restoran?.timezone as string | null) ?? "Europe/Istanbul";
 
-  return <AnalitikClient restoranId={restoranId} />;
+  return <AnalitikClient restoranId={restoranId} timezone={timezone} />;
 }

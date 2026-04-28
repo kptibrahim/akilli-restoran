@@ -16,6 +16,7 @@ model Restoran {
   wifiAdi        String?
   wifiSifre      String?
   sosyalMedya    Json?
+  timezone       String        @default("Europe/Istanbul")
   aktif          Boolean       @default(true)
   kategoriler    Kategori[]
   siparisler     Siparis[]

@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
         isim,
         slug,
         renk: "#FF6B35",
+        timezone: "Europe/Istanbul",
         aktif: true,
         selectedLanguages: ["tr"],
         createdAt: now,
@@ -69,7 +70,7 @@ export async function PUT(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
-    const { isim, logo, aciklama, renk, sosyalMedya, selectedLanguages, wifiAdi, wifiSifre } = await req.json();
+    const { isim, logo, aciklama, renk, sosyalMedya, selectedLanguages, wifiAdi, wifiSifre, timezone } = await req.json();
 
     if (!isim?.trim()) {
       return NextResponse.json({ error: "Restoran adı boş olamaz" }, { status: 400 });
@@ -115,6 +116,7 @@ export async function PUT(req: NextRequest) {
         wifiAdi: wifiAdi?.trim() || null,
         wifiSifre: wifiSifre?.trim() || null,
         translations,
+        ...(timezone ? { timezone } : {}),
       })
       .eq("userId", user.id);
 
