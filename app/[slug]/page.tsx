@@ -1,4 +1,9 @@
-import { db } from "@/lib/db";
+import { createClient } from "@supabase/supabase-js";
+
+const adminDb = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 import { notFound } from "next/navigation";
 import HosGeldinClient from "@/components/HosGeldinClient";
 
@@ -12,7 +17,7 @@ export default async function HosGeldinPage({
   const { slug } = await params;
   const { masa } = await searchParams;
 
-  const { data: restoran } = await db
+  const { data: restoran } = await adminDb
     .from("Restoran")
     .select("id, slug, isim, renk, logo, aciklama, wifiAdi, wifiSifre, sosyalMedya, selectedLanguages, translations")
     .eq("slug", slug)

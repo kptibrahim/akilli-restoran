@@ -3,6 +3,17 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 
+function turkceHata(err?: { message?: string; code?: string } | null): string {
+  const code = err?.code ?? "";
+  const m = (err?.message ?? "").toLowerCase();
+  if (code === "user_already_exists" || code === "email_exists" || m.includes("already registered") || m.includes("already exists") || m.includes("email address is already")) return "Bu e-posta adresiyle zaten bir hesap oluşturulmuş.";
+  if (m.includes("invalid email") || code === "invalid_email") return "Geçersiz e-posta adresi.";
+  if (m.includes("password") || code === "weak_password") return "Şifre en az 6 karakter olmalıdır.";
+  if (m.includes("rate limit") || m.includes("too many") || code === "over_request_rate_limit") return "Çok fazla deneme yapıldı. Lütfen bekleyin.";
+  if (m.includes("network") || m.includes("fetch")) return "Bağlantı hatası. Lütfen tekrar deneyin.";
+  return "Kayıt başarısız. Lütfen tekrar deneyin.";
+}
+
 export default function KayitForm() {
   const [restoranIsim, setRestoranIsim] = useState("");
   const [email, setEmail] = useState("");
@@ -39,7 +50,7 @@ export default function KayitForm() {
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password: sifre });
 
       if (authError || !authData.user) {
-        setHata(authError?.message ?? "Kayıt başarısız.");
+        setHata(turkceHata(authError));
         setYukleniyor(false);
         return;
       }

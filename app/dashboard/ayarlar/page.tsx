@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import AyarlarClient from "@/components/dashboard/AyarlarClient";
+import RestoranKurClient from "@/components/dashboard/RestoranKurClient";
 
 export default async function AyarlarPage() {
   const supabase = await createClient();
@@ -14,7 +15,7 @@ export default async function AyarlarPage() {
     .eq("userId", user.id)
     .single();
 
-  if (!restoran) redirect("/dashboard");
+  if (!restoran) return <RestoranKurClient />;
 
   return <AyarlarClient restoran={restoran as typeof restoran & { pin_yonetici: string | null; pin_kasiyer: string | null; pin_mutfak: string | null }} />;
 }

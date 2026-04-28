@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
-
-const adminDb = createAdminClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { adminDb } from "@/lib/supabase-admin";
+import { validateRestoranId } from "@/lib/restoran-dogrula";
+import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { getIp } from "@/lib/get-ip";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +11,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Eksik alan" }, { status: 400 });
     }
 
-    // Bu masa için önceki aktif çağrıları temizle
+    // Restoran doğrulama
+    const restoran = await validateRestoranId(restoranId);
+    if (!restoran) {
+      console.warn(`[garson-cagir] Geçersiz restoranId: ${restoranId} — IP: ${getIp(req)}`);
+      return NextResponse.json({ error: "Restoran bulunamadı" }, { status: 404 });
+    }
+
+    // Rate limiting — masa başına 3/dakika, restoran başına 30/dakika
+    const [masaLimit, restoranLimit] = await Promise.all([
+      rateLimit(`garson:masa:${restoranId}:${masaNo}`, 3, 60),
+      rateLimit(`garson:restoran:${restoranId}`, 30, 60),
+    ]);
+
+    if (!masaLimit.success || !restoranLimit.success) {
+      const failed = !masaLimit.success ? masaLimit : restoranLimit;
+      return NextResponse.json(
+        { error: "Çok fazla istek gönderildi", resetAt: failed.resetAt.toISOString() },
+        { status: 429, headers: rateLimitHeaders(failed) }
+      );
+    }
+
+    // Önceki aktif çağrıları temizle
     await adminDb
       .from("GarsonCagri")
       .delete()

@@ -14,7 +14,7 @@ export default async function QrKodlarPage() {
     .eq("userId", user.id)
     .single();
 
-  if (!restoran?.slug) redirect("/dashboard");
+  if (!restoran?.slug) redirect("/dashboard/ayarlar");
 
   return <QrKodlarClient slug={restoran.slug} logo={restoran.logo ?? null} />;
 }

@@ -7,9 +7,21 @@ type Urun = { isim: string; adet: number; fiyat: number };
 type Siparis = {
   id: string; masaNo: string; urunler: Urun[];
   toplam: number; durum: string; notlar: string | null; createdAt: string;
+  odemeYontemi?: string | null;
 };
 type ChatLog = { id: string; soru: string; cevap: string; createdAt: string };
 type ArsivGrup = { key: string; label: string; siparisler: Siparis[]; ciro: number; count: number };
+
+function trFix(str: string) {
+  return str
+    .replace(/ğ/g, "g").replace(/Ğ/g, "G")
+    .replace(/ş/g, "s").replace(/Ş/g, "S")
+    .replace(/ı/g, "i").replace(/İ/g, "I")
+    .replace(/ü/g, "u").replace(/Ü/g, "U")
+    .replace(/ö/g, "o").replace(/Ö/g, "O")
+    .replace(/ç/g, "c").replace(/Ç/g, "C")
+    .replace(/₺/g, "TL");
+}
 
 const DONEM_ETIKET: Record<DonemKey, string> = { gunluk: "Günlük", haftalik: "Haftalık", aylik: "Aylık" };
 
@@ -74,7 +86,7 @@ function grupla(siparisler: Siparis[], donem: DonemKey): ArsivGrup[] {
 
 function csvIndir(label: string, siparisler: Siparis[]) {
   const rows = [
-    ["Tarih/Saat", "Masa", "Urunler", "Toplam(TL)"],
+    ["Tarih/Saat", "Masa", "Urunler", "Toplam(TL)", "Odeme Yontemi"],
     ...siparisler.map(s => {
       const d = new Date(isoFix(s.createdAt));
       return [
@@ -82,6 +94,7 @@ function csvIndir(label: string, siparisler: Siparis[]) {
         s.masaNo,
         s.urunler.map(u => `${u.adet}x ${u.isim}`).join(" | "),
         s.toplam.toFixed(2),
+        s.odemeYontemi ?? "",
       ];
     }),
   ];
@@ -89,6 +102,142 @@ function csvIndir(label: string, siparisler: Siparis[]) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
   a.download = `rapor-${label.replace(/[\s/–]/g, "-")}.csv`;
+  a.click();
+}
+
+async function pdfIndir(label: string, siparisler: Siparis[]) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text(trFix(`Analitik Raporu - ${label}`), 14, 16);
+
+  const cols = [
+    { label: "Tarih/Saat", w: 45 },
+    { label: "Masa", w: 22 },
+    { label: "Urunler", w: 108 },
+    { label: "Notlar", w: 42 },
+    { label: "Toplam", w: 28 },
+    { label: "Odeme", w: 25 },
+  ];
+  const totalW = cols.reduce((a, c) => a + c.w, 0);
+  let y = 26;
+
+  doc.setFillColor(200, 148, 52);
+  doc.rect(14, y, totalW, 8, "F");
+  doc.setFontSize(9);
+  doc.setTextColor(10, 7, 5);
+  let x = 14;
+  cols.forEach((c) => { doc.text(c.label, x + 2, y + 5.5); x += c.w; });
+  y += 9;
+
+  siparisler.forEach((s, idx) => {
+    if (y > 185) { doc.addPage(); y = 15; }
+    doc.setFillColor(idx % 2 === 0 ? 245 : 235, idx % 2 === 0 ? 242 : 240, idx % 2 === 0 ? 238 : 236);
+    doc.rect(14, y, totalW, 7.5, "F");
+    doc.setTextColor(20, 20, 20);
+    doc.setFont("helvetica", "normal");
+    const d = new Date(isoFix(s.createdAt));
+    const row = [
+      d.toLocaleString("tr-TR"),
+      trFix(s.masaNo),
+      trFix(s.urunler.map(u => `${u.adet}x ${u.isim}`).join(", ")),
+      trFix(s.notlar ?? ""),
+      `TL${s.toplam.toFixed(2)}`,
+      trFix(s.odemeYontemi ?? ""),
+    ];
+    x = 14;
+    row.forEach((cell, i) => {
+      const lines = doc.splitTextToSize(String(cell), cols[i].w - 3);
+      doc.text(lines[0], x + 2, y + 5);
+      x += cols[i].w;
+    });
+    y += 8;
+  });
+
+  y += 4;
+  const ciro = siparisler.reduce((a, s) => a + s.toplam, 0);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(200, 148, 52);
+  doc.text(`Toplam Ciro: TL${ciro.toFixed(2)}  ·  ${siparisler.length} siparis`, 14, y);
+  doc.save(`rapor-${label.replace(/[\s/–]/g, "-")}.pdf`);
+}
+
+function pngIndir(label: string, siparisler: Siparis[]) {
+  const pad = 28;
+  const cols = [
+    { label: "Tarih/Saat", w: 130 },
+    { label: "Masa", w: 70 },
+    { label: "Ürünler", w: 260 },
+    { label: "Notlar", w: 110 },
+    { label: "Toplam", w: 80 },
+    { label: "Ödeme", w: 90 },
+  ];
+  const totalW = cols.reduce((a, c) => a + c.w, 0) + pad * 2;
+  const rowH = 38;
+  const headH = 44;
+  const titleH = 58;
+  const footH = 46;
+  const totalH = titleH + headH + siparisler.length * rowH + footH + pad;
+  const sc = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = totalW * sc;
+  canvas.height = totalH * sc;
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(sc, sc);
+
+  ctx.fillStyle = "#0A0705";
+  ctx.fillRect(0, 0, totalW, totalH);
+  ctx.fillStyle = "#E8B84B";
+  ctx.font = "bold 18px system-ui, sans-serif";
+  ctx.fillText("Analitik Raporu", pad, 36);
+  ctx.fillStyle = "#888";
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillText(label, pad, 52);
+
+  ctx.fillStyle = "#C89434";
+  ctx.fillRect(pad, titleH, totalW - pad * 2, headH);
+  let px = pad;
+  ctx.fillStyle = "#0A0705";
+  ctx.font = "bold 12px system-ui, sans-serif";
+  cols.forEach((c) => { ctx.fillText(c.label, px + 8, titleH + 28); px += c.w; });
+
+  siparisler.forEach((s, idx) => {
+    const ry = titleH + headH + idx * rowH;
+    ctx.fillStyle = idx % 2 === 0 ? "#151210" : "#1c1612";
+    ctx.fillRect(pad, ry, totalW - pad * 2, rowH);
+    const d = new Date(isoFix(s.createdAt));
+    const row = [
+      d.toLocaleString("tr-TR"),
+      s.masaNo,
+      s.urunler.map(u => `${u.adet}x ${u.isim}`).join(", "),
+      s.notlar ?? "",
+      `₺${s.toplam.toFixed(0)}`,
+      s.odemeYontemi ?? "",
+    ];
+    px = pad;
+    ctx.fillStyle = "#d9cfc4";
+    ctx.font = "12px system-ui, sans-serif";
+    row.forEach((cell, i) => {
+      const maxCh = Math.floor((cols[i].w - 16) / 7.2);
+      const txt = cell.length > maxCh ? cell.slice(0, maxCh - 1) + "…" : cell;
+      ctx.fillText(txt, px + 8, ry + 24);
+      px += cols[i].w;
+    });
+  });
+
+  const fy = titleH + headH + siparisler.length * rowH;
+  ctx.fillStyle = "#1e1a16";
+  ctx.fillRect(pad, fy, totalW - pad * 2, footH);
+  const ciro = siparisler.reduce((a, s) => a + s.toplam, 0);
+  ctx.fillStyle = "#E8B84B";
+  ctx.font = "bold 14px system-ui, sans-serif";
+  ctx.fillText(`Toplam Ciro: ₺${ciro.toFixed(0)}  ·  ${siparisler.length} siparis`, pad + 10, fy + 28);
+
+  const a = document.createElement("a");
+  a.download = `rapor-${label.replace(/[\s/–]/g, "-")}.png`;
+  a.href = canvas.toDataURL("image/png");
   a.click();
 }
 
@@ -174,20 +323,6 @@ export default function AnalitikClient({ restoranId }: { restoranId: string }) {
           <p className="text-sm mt-0.5" style={{ color: "var(--ast-text2)" }}>{getDonemLabel(donem)}</p>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          {!yukleniyor && siparisler.length > 0 && (
-            <button
-              onClick={() => csvIndir(getDonemLabel(donem), siparisler)}
-              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl font-semibold"
-              style={{ border: "1px solid var(--ast-divider)", background: "var(--ast-card-bg)", color: "var(--ast-text2)" }}
-            >
-              <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              CSV
-            </button>
-          )}
           <button
             onClick={arsivAc}
             className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl font-semibold"
@@ -307,7 +442,7 @@ export default function AnalitikClient({ restoranId }: { restoranId: string }) {
                 </svg>
                 <div>
                   <p className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>Rapor Arşivi</p>
-                  <p className="text-[10px]" style={{ color: "var(--ast-text3)" }}>Tüm dönemler · CSV olarak indir</p>
+                  <p className="text-[10px]" style={{ color: "var(--ast-text3)" }}>Tüm dönemler · CSV, PDF, PNG</p>
                 </div>
               </div>
               <button onClick={() => { setArsivAcik(false); setTemizleOnay(false); }}
@@ -367,17 +502,24 @@ export default function AnalitikClient({ restoranId }: { restoranId: string }) {
                           <span className="text-xs font-bold" style={{ color: "var(--ast-gold)" }}>₺{grup.ciro.toFixed(0)}</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => csvIndir(grup.label, grup.siparisler)}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-opacity hover:opacity-70"
-                        style={{ border: "1px solid var(--ast-divider)", background: "var(--ast-icon-bg)", color: "var(--ast-text2)" }}>
-                        <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2}>
-                          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                          <polyline points="7 10 12 15 17 10"/>
-                          <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        CSV
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {[
+                          { label: "CSV", fn: () => csvIndir(grup.label, grup.siparisler) },
+                          { label: "PDF", fn: () => pdfIndir(grup.label, grup.siparisler) },
+                          { label: "PNG", fn: () => pngIndir(grup.label, grup.siparisler) },
+                        ].map(({ label, fn }) => (
+                          <button key={label} onClick={fn}
+                            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition-opacity hover:opacity-70"
+                            style={{ border: "1px solid var(--ast-divider)", background: "var(--ast-icon-bg)", color: "var(--ast-text2)" }}>
+                            <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={2}>
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                              <polyline points="7 10 12 15 17 10"/>
+                              <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))

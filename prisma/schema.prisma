@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Restoran {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  isim           String
+  logo           String?
+  aciklama       String?
+  renk           String        @default("#FF6B35")
+  wifiAdi        String?
+  wifiSifre      String?
+  sosyalMedya    Json?
+  aktif          Boolean       @default(true)
+  kategoriler    Kategori[]
+  siparisler     Siparis[]
+  rezervasyonlar Rezervasyon[]
+  odemeArsivler  OdemeArsiv[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Kategori {
+  id         String   @id @default(cuid())
+  restoranId String
+  isim       String
+  sira       Int      @default(0)
+  urunler    Urun[]
+  restoran   Restoran @relation(fields: [restoranId], references: [id], onDelete: Cascade)
+}
+
+model Urun {
+  id         String   @id @default(cuid())
+  kategoriId String
+  isim       String
+  aciklama   String?
+  fiyat      Float
+  kalori     Int?
+  icerik     String?
+  alerjenler String?
+  gorsel     String?
+  aktif      Boolean  @default(true)
+  sira       Int      @default(0)
+  kategori   Kategori @relation(fields: [kategoriId], references: [id], onDelete: Cascade)
+}
+
+model Siparis {
+  id         String   @id @default(cuid())
+  restoranId String
+  masaNo     String
+  urunler    Json
+  toplam     Float
+  durum      String   @default("bekliyor")
+  notlar     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  restoran   Restoran @relation(fields: [restoranId], references: [id], onDelete: Cascade)
+}
+
+model Rezervasyon {
+  id         String   @id @default(cuid())
+  restoranId String
+  isim       String
+  telefon    String
+  tarih      DateTime
+  kisiSayisi Int
+  notlar     String?
+  durum      String   @default("bekliyor")
+  createdAt  DateTime @default(now())
+  restoran   Restoran @relation(fields: [restoranId], references: [id], onDelete: Cascade)
+}
+
+model ChatLog {
+  id         String   @id @default(cuid())
+  restoranId String
+  masaNo     String?
+  soru       String
+  cevap      String
+  createdAt  DateTime @default(now())
+}
+
+model OdemeArsiv {
+  id             String    @id @default(uuid())
+  restoranId     String
+  siparisId      String?
+  masaNo         String
+  urunler        Json
+  toplam         Float
+  odemeYontemi   String?
+  odemeAlanKisi  String?
+  not            String?
+  odendi         Boolean   @default(false)
+  odendiTarih    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  restoran       Restoran  @relation(fields: [restoranId], references: [id], onDelete: Cascade)
+
+  @@index([restoranId, odendi, createdAt])
+}

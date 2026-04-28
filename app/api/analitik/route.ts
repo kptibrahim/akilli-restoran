@@ -11,13 +11,13 @@ export async function GET(req: NextRequest) {
 
   if (arsiv) {
     const [{ data: siparisler }, { data: chatLoglar }] = await Promise.all([
-      adminDb.from("Siparis").select("*").eq("restoranId", restoranId).order("createdAt", { ascending: false }),
+      adminDb.from("AnalitikKayit").select("*").eq("restoranId", restoranId).order("createdAt", { ascending: false }),
       adminDb.from("ChatLog").select("*").eq("restoranId", restoranId).order("createdAt", { ascending: false }).limit(1000),
     ]);
     return NextResponse.json({ siparisler: siparisler ?? [], chatLoglar: chatLoglar ?? [] });
   }
 
-  let sipQuery = adminDb.from("Siparis").select("*").eq("restoranId", restoranId);
+  let sipQuery = adminDb.from("AnalitikKayit").select("*").eq("restoranId", restoranId);
   let chatQuery = adminDb.from("ChatLog").select("*").eq("restoranId", restoranId);
 
   if (bas) {

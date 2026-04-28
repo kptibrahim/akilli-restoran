@@ -210,6 +210,8 @@ export default function SiparislerPage() {
   const [arsivSiparisler, setArsivSiparisler] = useState<Siparis[]>([]);
   const [arsivYukleniyor, setArsivYukleniyor] = useState(false);
 
+  const [simdi, setSimdi] = useState(Date.now());
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -234,9 +236,20 @@ export default function SiparislerPage() {
   useEffect(() => {
     if (!restoranId) return;
     yukle();
-    const interval = setInterval(yukle, 10000);
-    return () => clearInterval(interval);
   }, [yukle, restoranId]);
+
+  // 30 saniyede bir polling
+  useEffect(() => {
+    if (!restoranId) return;
+    const t = setInterval(yukle, 30000);
+    return () => clearInterval(t);
+  }, [restoranId, yukle]);
+
+  // Her saniye güncelle → kart renk/süre hesabı için
+  useEffect(() => {
+    const t = setInterval(() => setSimdi(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const arsivAc = useCallback(async () => {
     if (!restoranId) return;
@@ -258,27 +271,53 @@ export default function SiparislerPage() {
     if (durum === "teslim") {
       const siparis = siparisler.find((s) => s.id === siparisId);
       if (siparis) {
-        try {
-          const mevcut = JSON.parse(localStorage.getItem("gastronom_kasa") || "[]");
-          localStorage.setItem("gastronom_kasa", JSON.stringify([
-            ...mevcut,
-            {
-              id: siparis.id,
-              masaNo: siparis.masaNo,
-              urunler: siparis.urunler,
-              toplam: siparis.toplam,
-              notlar: siparis.notlar,
-              teslimSaati: new Date().toISOString(),
-            },
-          ]));
-          window.dispatchEvent(new CustomEvent("kasa-guncellendi"));
-        } catch {}
+        // Cloud: OdemeArsiv kaydı oluştur
+        fetch("/api/odeme-arsiv", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            siparisId: siparis.id,
+            masaNo: siparis.masaNo,
+            urunler: siparis.urunler,
+            toplam: siparis.toplam,
+            not: siparis.notlar,
+          }),
+        }).catch(() => {});
       }
     }
     yukle();
   }
 
   const aktifSiparisler = siparisler.filter((s) => s.durum !== "teslim");
+
+  const DURUM_SIRA = ["bekliyor", "hazirlaniyor", "hazir", "teslim"];
+
+  type MasaGrubu = {
+    masaNo: string;
+    siparisler: Siparis[];
+    toplam: number;
+    durum: string;
+  };
+
+  const masaGruplari: MasaGrubu[] = Array.from(
+    aktifSiparisler.reduce((map, s) => {
+      if (!map.has(s.masaNo)) map.set(s.masaNo, []);
+      map.get(s.masaNo)!.push(s);
+      return map;
+    }, new Map<string, Siparis[]>())
+  ).map(([masaNo, list]) => {
+    const minIdx = Math.min(...list.map((s) => DURUM_SIRA.indexOf(s.durum)).filter((i) => i >= 0));
+    return {
+      masaNo,
+      siparisler: list,
+      toplam: list.reduce((a, s) => a + s.toplam, 0),
+      durum: DURUM_SIRA[minIdx] ?? "bekliyor",
+    };
+  });
+
+  async function grupDurumGuncelle(grup: MasaGrubu, sonrakiDurum: string) {
+    await Promise.all(grup.siparisler.map((s) => durumGuncelle(s.id, sonrakiDurum)));
+  }
 
   const arsivToplam = arsivSiparisler.reduce((acc, s) => acc + s.toplam, 0);
   const arsivTeslim = arsivSiparisler.filter((s) => s.durum === "teslim").length;
@@ -300,13 +339,19 @@ export default function SiparislerPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-black" style={{ color: "var(--ast-text1)" }}>Aktif Siparişler</h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--ast-text2)" }}>{aktifSiparisler.length} sipariş</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--ast-text2)" }}>{masaGruplari.length} masa · {aktifSiparisler.length} sipariş</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={yukle}
-            className="text-xs px-3 py-2 rounded-xl font-medium"
-            style={{ border: "1px solid var(--ast-divider)", background: "var(--ast-card-bg)", color: "var(--ast-text2)" }}>
-            ↻ Yenile
+          {/* Tam ekran */}
+          <button
+            onClick={() => {
+              if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+              else document.exitFullscreen();
+            }}
+            className="text-sm px-2.5 py-2 rounded-xl"
+            style={{ border: "1px solid var(--ast-divider)", background: "var(--ast-card-bg)", color: "var(--ast-text2)" }}
+            title="Tam ekran">
+            ⛶
           </button>
           <button onClick={arsivAc}
             className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl font-semibold transition-all"
@@ -327,37 +372,56 @@ export default function SiparislerPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {aktifSiparisler.map((s) => {
-            const d = DURUM_CONFIG[s.durum] ?? DURUM_CONFIG.bekliyor;
+          {masaGruplari.map((grup) => {
+            const d = DURUM_CONFIG[grup.durum] ?? DURUM_CONFIG.bekliyor;
+            const enErken = grup.siparisler.reduce(
+              (min, s) => (s.createdAt < min ? s.createdAt : min),
+              grup.siparisler[0].createdAt
+            );
+            const dk = Math.floor((simdi - new Date(enErken).getTime()) / 60000);
+            const borderRenk = dk >= 10 ? "#ef4444" : dk >= 5 ? "#eab308" : "var(--ast-card-border)";
             return (
-              <div key={s.id} className="rounded-2xl overflow-hidden"
-                style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)", boxShadow: "var(--ast-card-shadow)" }}>
+              <div key={grup.masaNo} className={`rounded-2xl overflow-hidden${dk >= 10 ? " animate-pulse" : ""}`}
+                style={{ background: "var(--ast-card-bg)", border: `1px solid ${borderRenk}`, boxShadow: "var(--ast-card-shadow)" }}>
                 <div className="flex items-center justify-between px-4 py-3"
                   style={{ borderBottom: "1px solid var(--ast-divider)" }}>
-                  <span className="font-bold text-base" style={{ color: "var(--ast-text1)" }}>Masa {s.masaNo}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-base" style={{ color: "var(--ast-text1)" }}>Masa {grup.masaNo}</span>
+                    {grup.siparisler.length > 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                        style={{ background: "var(--ast-badge-bg)", color: "var(--ast-text3)" }}>
+                        {grup.siparisler.length} sipariş
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
                     style={{ color: `var(${d.textVar})`, background: `var(${d.bgVar})`, border: `1px solid var(${d.borderVar})` }}>
                     {d.etiket}
                   </span>
                 </div>
-                <div className="px-4 py-3 space-y-1.5">
-                  {(s.urunler as SepetUrun[]).map((u, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span style={{ color: "var(--ast-text1)" }}>{u.adet}× {u.isim}</span>
-                      <span style={{ color: "var(--ast-text2)" }}>₺{(u.fiyat * u.adet).toFixed(0)}</span>
+                <div className="px-4 py-3 space-y-3">
+                  {grup.siparisler.map((s, si) => (
+                    <div key={s.id}>
+                      {si > 0 && <div style={{ borderTop: "1px dashed var(--ast-divider)", marginBottom: 10 }} />}
+                      <div className="space-y-1.5">
+                        {s.urunler.map((u, i) => (
+                          <div key={i} className="flex justify-between text-sm">
+                            <span style={{ color: "var(--ast-text1)" }}>{u.adet}× {u.isim}</span>
+                            <span style={{ color: "var(--ast-text2)" }}>₺{(u.fiyat * u.adet).toFixed(0)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {s.notlar && (
+                        <p className="text-xs mt-1.5" style={{ color: "var(--ast-warn-text)" }}>📝 {s.notlar}</p>
+                      )}
                     </div>
                   ))}
                 </div>
-                {s.notlar && (
-                  <div className="px-4 py-2" style={{ background: "var(--ast-warn-bg)", borderTop: "1px solid var(--ast-warn-border)" }}>
-                    <p className="text-xs" style={{ color: "var(--ast-warn-text)" }}>📝 {s.notlar}</p>
-                  </div>
-                )}
                 <div className="flex items-center justify-between px-4 py-3"
                   style={{ borderTop: "1px solid var(--ast-divider)" }}>
-                  <span className="font-bold" style={{ color: "var(--ast-text1)" }}>₺{s.toplam.toFixed(0)}</span>
+                  <span className="font-bold" style={{ color: "var(--ast-text1)" }}>₺{grup.toplam.toFixed(0)}</span>
                   {d.sonraki && (
-                    <button onClick={() => durumGuncelle(s.id, d.sonraki!)}
+                    <button onClick={() => grupDurumGuncelle(grup, d.sonraki!)}
                       className="text-xs px-4 py-2 rounded-xl font-semibold"
                       style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)", color: "#0A0705" }}>
                       {d.sonrakiEtiket}

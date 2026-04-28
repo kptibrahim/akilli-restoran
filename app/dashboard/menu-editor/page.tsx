@@ -14,7 +14,7 @@ export default async function MenuEditorPage() {
     .eq("userId", user.id)
     .single();
 
-  if (!restoran) redirect("/dashboard");
+  if (!restoran) redirect("/dashboard/ayarlar");
 
   const { data: kategoriler } = await supabase
     .from("Kategori")

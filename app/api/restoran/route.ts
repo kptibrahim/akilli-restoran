@@ -34,20 +34,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bu slug zaten kullanımda" }, { status: 409 });
     }
 
-    const { data: restoran, error } = await supabase
+    const now = new Date().toISOString();
+    const { data: restoran, error } = await adminDb
       .from("Restoran")
       .insert({
+        id: crypto.randomUUID(),
         userId: user.id,
         isim,
         slug,
         renk: "#FF6B35",
         aktif: true,
         selectedLanguages: ["tr"],
+        createdAt: now,
+        updatedAt: now,
       })
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("Restoran oluşturma hatası:", error.code, error.message);
+      return NextResponse.json({ error: "Restoran oluşturulamadı. Lütfen tekrar deneyin." }, { status: 500 });
+    }
 
     return NextResponse.json({ restoran }, { status: 201 });
   } catch (err) {

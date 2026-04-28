@@ -1,4 +1,9 @@
-import { db } from "@/lib/db";
+import { createClient } from "@supabase/supabase-js";
+
+const adminDb = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 import { notFound } from "next/navigation";
 import MenuClient from "@/components/MenuClient";
 import type { Kategori } from "@/lib/types";
@@ -15,7 +20,7 @@ export default async function MenuPage({
   const { slug } = await params;
   const { masa, dil = "tr" } = await searchParams;
 
-  const { data: restoran } = await db
+  const { data: restoran } = await adminDb
     .from("Restoran")
     .select("id, slug, isim, renk, logo, selectedLanguages")
     .eq("slug", slug)
@@ -24,7 +29,7 @@ export default async function MenuPage({
 
   if (!restoran) notFound();
 
-  const { data: kategoriler } = await db
+  const { data: kategoriler } = await adminDb
     .from("Kategori")
     .select("*, urunler:Urun(*)")
     .eq("restoranId", restoran.id)

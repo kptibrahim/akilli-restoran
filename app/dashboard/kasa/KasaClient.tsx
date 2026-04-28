@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@/lib/supabase-browser";
 
 function trFix(str: string) {
   return str
@@ -17,25 +18,31 @@ type SepetUrun = { isim: string; adet: number; fiyat: number };
 
 type KasaKayit = {
   id: string;
+  restoranId: string;
+  siparisId: string | null;
   masaNo: string;
   urunler: SepetUrun[];
   toplam: number;
-  notlar: string | null;
-  teslimSaati: string;
+  not: string | null;
+  odendi: boolean;
+  odendiTarih: string | null;
+  odemeYontemi: string | null;
+  createdAt: string;
 };
-
-type KasaArsiv = KasaKayit & { odemeZamani: string };
 
 type MasaGrubu = {
   masaNo: string;
   kayitlar: KasaKayit[];
   toplamTutar: number;
   birlesikUrunler: SepetUrun[];
-  ilkTeslim: string;
+  ilkCreated: string;
 };
 
+type OdemeYontemi = "nakit" | "kart" | "yemek-ceki" | "diger";
+
 function saatFormat(iso: string) {
-  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  const s = iso.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + "Z";
+  return new Date(s).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function grupla(kayitlar: KasaKayit[]): MasaGrubu[] {
@@ -55,27 +62,28 @@ function grupla(kayitlar: KasaKayit[]): MasaGrubu[] {
         }
       }
     }
-    const sirali = [...liste].sort((a, b) => a.teslimSaati.localeCompare(b.teslimSaati));
+    const sirali = [...liste].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return {
       masaNo,
       kayitlar: liste,
       toplamTutar: liste.reduce((acc, k) => acc + k.toplam, 0),
       birlesikUrunler: Array.from(urunMap.values()),
-      ilkTeslim: sirali[0].teslimSaati,
+      ilkCreated: sirali[0].createdAt,
     };
   });
 }
 
-// ── İndirme fonksiyonları ──
+// ── İndirme fonksiyonları (aynen korundu) ──
 
-function csvIndirKasa(arsiv: KasaArsiv[]) {
+function csvIndirKasa(arsiv: KasaKayit[]) {
   const satirlar = [
-    ["Ödeme Saati", "Masa", "Ürünler", "Notlar", "Toplam (₺)"],
+    ["Ödeme Saati", "Masa", "Yöntem", "Ürünler", "Notlar", "Toplam (₺)"],
     ...arsiv.map((k) => [
-      saatFormat(k.odemeZamani),
+      saatFormat(k.odendiTarih ?? k.createdAt),
       k.masaNo,
+      k.odemeYontemi ?? "",
       k.urunler.map((u) => `${u.adet}x ${u.isim}`).join(" | "),
-      k.notlar ?? "",
+      k.not ?? "",
       k.toplam.toFixed(2),
     ]),
   ];
@@ -90,7 +98,7 @@ function csvIndirKasa(arsiv: KasaArsiv[]) {
   URL.revokeObjectURL(url);
 }
 
-async function pdfIndirKasa(arsiv: KasaArsiv[]) {
+async function pdfIndirKasa(arsiv: KasaKayit[]) {
   const { jsPDF } = await import("jspdf");
   const tarih = new Date().toLocaleDateString("tr-TR");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -102,7 +110,8 @@ async function pdfIndirKasa(arsiv: KasaArsiv[]) {
   const cols = [
     { label: "Odeme", w: 25 },
     { label: "Masa", w: 28 },
-    { label: "Urunler", w: 120 },
+    { label: "Yontem", w: 25 },
+    { label: "Urunler", w: 95 },
     { label: "Notlar", w: 50 },
     { label: "Toplam", w: 30 },
   ];
@@ -124,10 +133,11 @@ async function pdfIndirKasa(arsiv: KasaArsiv[]) {
     doc.setTextColor(20, 20, 20);
     doc.setFont("helvetica", "normal");
     const row = [
-      saatFormat(k.odemeZamani),
+      saatFormat(k.odendiTarih ?? k.createdAt),
       trFix(k.masaNo),
+      trFix(k.odemeYontemi ?? ""),
       trFix(k.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", ")),
-      trFix(k.notlar ?? ""),
+      trFix(k.not ?? ""),
       `TL${k.toplam.toFixed(2)}`,
     ];
     x = 14;
@@ -147,13 +157,14 @@ async function pdfIndirKasa(arsiv: KasaArsiv[]) {
   doc.save(`kasa-${tarih.replace(/\./g, "-")}.pdf`);
 }
 
-function pngIndirKasa(arsiv: KasaArsiv[]) {
+function pngIndirKasa(arsiv: KasaKayit[]) {
   const pad = 28;
   const cols = [
     { label: "Ödeme Saati", w: 100 },
-    { label: "Masa", w: 86 },
-    { label: "Ürünler", w: 340 },
-    { label: "Notlar", w: 160 },
+    { label: "Masa", w: 80 },
+    { label: "Yöntem", w: 90 },
+    { label: "Ürünler", w: 300 },
+    { label: "Notlar", w: 150 },
     { label: "Toplam", w: 80 },
   ];
   const totalW = cols.reduce((a, c) => a + c.w, 0) + pad * 2;
@@ -190,10 +201,11 @@ function pngIndirKasa(arsiv: KasaArsiv[]) {
     ctx.fillStyle = idx % 2 === 0 ? "#151210" : "#1c1612";
     ctx.fillRect(pad, ry, totalW - pad * 2, rowH);
     const row = [
-      saatFormat(k.odemeZamani),
+      saatFormat(k.odendiTarih ?? k.createdAt),
       k.masaNo,
+      k.odemeYontemi ?? "",
       k.urunler.map((u) => `${u.adet}x ${u.isim}`).join(", "),
-      k.notlar ?? "",
+      k.not ?? "",
       `₺${k.toplam.toFixed(0)}`,
     ];
     px = pad;
@@ -224,58 +236,124 @@ function pngIndirKasa(arsiv: KasaArsiv[]) {
 
 // ── Ana Component ──
 
+const YONTEM_ETIKET: Record<OdemeYontemi, string> = {
+  nakit: "💵 Nakit",
+  kart: "💳 Kart",
+  "yemek-ceki": "🎫 Yemek Çeki",
+  diger: "🔄 Diğer",
+};
+
 export default function KasaClient() {
+  const [restoranId, setRestoranId] = useState<string | null>(null);
   const [kayitlar, setKayitlar] = useState<KasaKayit[]>([]);
-  const [arsiv, setArsiv] = useState<KasaArsiv[]>([]);
+  const [arsiv, setArsiv] = useState<KasaKayit[]>([]);
   const [arama, setArama] = useState("");
   const [arsivAcik, setArsivAcik] = useState(false);
   const [ready, setReady] = useState(false);
 
-  const oku = useCallback(() => {
-    try {
-      setKayitlar(JSON.parse(localStorage.getItem("gastronom_kasa") || "[]"));
-    } catch { setKayitlar([]); }
-    try {
-      const tumArsiv: KasaArsiv[] = JSON.parse(localStorage.getItem("gastronom_kasa_arsiv") || "[]");
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const temiz = tumArsiv.filter((a) => a.odemeZamani > since);
-      if (temiz.length !== tumArsiv.length) {
-        localStorage.setItem("gastronom_kasa_arsiv", JSON.stringify(temiz));
-      }
-      setArsiv(temiz);
-    } catch { setArsiv([]); }
-    setReady(true);
+  // Ödeme modal
+  const [modalMasa, setModalMasa] = useState<string | null>(null);
+  const [seciliYontem, setSeciliYontem] = useState<OdemeYontemi>("nakit");
+  const [odemeYukleniyor, setOdemeYukleniyor] = useState(false);
+
+  // restoranId al
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("Restoran").select("id").eq("userId", user.id).single().then(({ data }) => {
+        if (data) setRestoranId(data.id);
+      });
+    });
   }, []);
 
-  useEffect(() => {
-    oku();
-    const handler = (e: StorageEvent) => {
-      if (e.key === "gastronom_kasa" || e.key === "gastronom_kasa_arsiv") oku();
-    };
-    window.addEventListener("storage", handler);
-    const kasa_handler = () => oku();
-    window.addEventListener("kasa-guncellendi", kasa_handler);
-    const timer = setInterval(oku, 5000);
-    return () => {
-      window.removeEventListener("storage", handler);
-      window.removeEventListener("kasa-guncellendi", kasa_handler);
-      clearInterval(timer);
-    };
-  }, [oku]);
+  // Bekleyenleri yükle
+  const yukle = useCallback(async () => {
+    if (!restoranId) return;
+    const res = await fetch(`/api/odeme-arsiv?odendi=false`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setKayitlar(data.kayitlar ?? []);
+    setReady(true);
+  }, [restoranId]);
 
-  function odemeAl(masaNo: string) {
+  useEffect(() => {
+    if (!restoranId) return;
+    yukle();
+  }, [yukle, restoranId]);
+
+  // 30 saniyede bir polling
+  useEffect(() => {
+    if (!restoranId) return;
+    const t = setInterval(yukle, 30000);
+    return () => clearInterval(t);
+  }, [restoranId, yukle]);
+
+  // localStorage migration (tek seferlik)
+  useEffect(() => {
+    if (!restoranId) return;
+    const eskiKasa = localStorage.getItem("gastronom_kasa");
+    const eskiArsiv = localStorage.getItem("gastronom_kasa_arsiv");
+    if (!eskiKasa && !eskiArsiv) return;
+
+    fetch("/api/odeme-arsiv/migrate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bekleyenler: JSON.parse(eskiKasa || "[]"),
+        arsiv: JSON.parse(eskiArsiv || "[]"),
+      }),
+    }).then((r) => {
+      if (r.ok) {
+        localStorage.removeItem("gastronom_kasa");
+        localStorage.removeItem("gastronom_kasa_arsiv");
+        yukle();
+      }
+    }).catch(() => {});
+  }, [restoranId, yukle]);
+
+  // Arşiv yükle (drawer açıldığında)
+  const arsivYukle = useCallback(async () => {
+    if (!restoranId) return;
+    const res = await fetch(`/api/odeme-arsiv?odendi=true&donem=gunluk`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setArsiv(data.kayitlar ?? []);
+  }, [restoranId]);
+
+  useEffect(() => {
+    if (arsivAcik) arsivYukle();
+  }, [arsivAcik, arsivYukle]);
+
+  // Ödeme al — modal aç
+  function odemeAlBasla(masaNo: string) {
+    setModalMasa(masaNo);
+    setSeciliYontem("nakit");
+  }
+
+  // Ödeme onayla
+  async function odemeOnayla() {
+    if (!modalMasa) return;
+    const grup = gruplar.find((g) => g.masaNo === modalMasa);
+    if (!grup) return;
+
+    setOdemeYukleniyor(true);
     try {
-      const simdiki: KasaKayit[] = JSON.parse(localStorage.getItem("gastronom_kasa") || "[]");
-      const kalanlar = simdiki.filter((k) => k.masaNo !== masaNo);
-      const odenecekler = simdiki.filter((k) => k.masaNo === masaNo);
-      const odemeZamani = new Date().toISOString();
-      const mevcutArsiv: KasaArsiv[] = JSON.parse(localStorage.getItem("gastronom_kasa_arsiv") || "[]");
-      const yeniArsiv = [...mevcutArsiv, ...odenecekler.map((k) => ({ ...k, odemeZamani }))];
-      localStorage.setItem("gastronom_kasa", JSON.stringify(kalanlar));
-      localStorage.setItem("gastronom_kasa_arsiv", JSON.stringify(yeniArsiv));
-      window.dispatchEvent(new CustomEvent("kasa-guncellendi"));
-      oku();
-    } catch {}
+      await Promise.all(
+        grup.kayitlar.map((k) =>
+          fetch(`/api/odeme-arsiv/${k.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ odemeYontemi: seciliYontem }),
+          })
+        )
+      );
+      // Realtime günceller ama fallback olarak local state de güncelle
+      setKayitlar((prev) => prev.filter((r) => r.masaNo !== modalMasa));
+    } finally {
+      setOdemeYukleniyor(false);
+      setModalMasa(null);
+    }
   }
 
   const gruplar = grupla(kayitlar);
@@ -393,25 +471,28 @@ export default function KasaClient() {
                   )}
                 </div>
                 <span className="text-xs" style={{ color: "var(--ast-text3)" }}>
-                  {saatFormat(g.ilkTeslim)}
+                  {saatFormat(g.ilkCreated)}
                 </span>
               </div>
 
               {/* Ürünler */}
-              <div className="px-4 py-3 space-y-1.5">
-                {g.birlesikUrunler.map((u, i) => (
-                  <div key={i} className="flex justify-between text-sm">
-                    <span style={{ color: "var(--ast-text1)" }}>{u.adet}× {u.isim}</span>
-                    <span style={{ color: "var(--ast-text2)" }}>₺{(u.fiyat * u.adet).toFixed(0)}</span>
+              <div className="px-4 py-3 space-y-3">
+                {g.kayitlar.map((k, ki) => (
+                  <div key={k.id}>
+                    {ki > 0 && <div style={{ borderTop: "1px dashed var(--ast-divider)", marginBottom: 10 }} />}
+                    <div className="space-y-1.5">
+                      {k.urunler.map((u, i) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span style={{ color: "var(--ast-text1)" }}>{u.adet}× {u.isim}</span>
+                          <span style={{ color: "var(--ast-text2)" }}>₺{(u.fiyat * u.adet).toFixed(0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {k.not && (
+                      <p className="text-xs mt-1.5" style={{ color: "var(--ast-warn-text)" }}>📝 {k.not}</p>
+                    )}
                   </div>
                 ))}
-                {g.kayitlar.some((k) => k.notlar) && (
-                  <div className="pt-1 space-y-0.5">
-                    {g.kayitlar.filter((k) => k.notlar).map((k) => (
-                      <p key={k.id} className="text-xs" style={{ color: "var(--ast-warn-text)" }}>📝 {k.notlar}</p>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Alt Bar */}
@@ -421,7 +502,7 @@ export default function KasaClient() {
                   ₺{g.toplamTutar.toFixed(0)}
                 </span>
                 <button
-                  onClick={() => odemeAl(g.masaNo)}
+                  onClick={() => odemeAlBasla(g.masaNo)}
                   className="px-5 py-2.5 rounded-xl text-sm font-black transition-opacity hover:opacity-90"
                   style={{ background: "linear-gradient(135deg, #16a34a, #22c55e)", color: "#fff" }}
                 >
@@ -440,7 +521,7 @@ export default function KasaClient() {
                 <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
               </svg>
               <span className="text-xs font-bold" style={{ color: "var(--ast-text3)" }}>
-                Günlük Arşivde {filtreliArsiv.length} sonuç
+                Arşivde {filtreliArsiv.length} sonuç
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -451,11 +532,11 @@ export default function KasaClient() {
                     style={{ borderBottom: "1px solid var(--ast-divider)" }}>
                     <div className="flex items-center gap-2">
                       <span className="font-black text-base" style={{ color: "var(--ast-text1)" }}>Masa {k.masaNo}</span>
-                      <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odemeZamani)}</span>
+                      <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odendiTarih ?? k.createdAt)}</span>
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                       style={{ background: "var(--ast-success-bg)", color: "var(--ast-success-text)" }}>
-                      Ödendi
+                      {k.odemeYontemi ? YONTEM_ETIKET[k.odemeYontemi as OdemeYontemi] ?? k.odemeYontemi : "Ödendi"}
                     </span>
                   </div>
                   <div className="px-4 py-3 space-y-1.5">
@@ -465,7 +546,7 @@ export default function KasaClient() {
                         <span style={{ color: "var(--ast-text2)" }}>₺{(u.fiyat * u.adet).toFixed(0)}</span>
                       </div>
                     ))}
-                    {k.notlar && <p className="text-xs pt-1" style={{ color: "var(--ast-warn-text)" }}>📝 {k.notlar}</p>}
+                    {k.not && <p className="text-xs pt-1" style={{ color: "var(--ast-warn-text)" }}>📝 {k.not}</p>}
                   </div>
                   <div className="flex justify-end px-4 py-3" style={{ borderTop: "1px solid var(--ast-divider)" }}>
                     <span className="font-black text-xl" style={{ color: "var(--ast-gold)" }}>₺{k.toplam.toFixed(0)}</span>
@@ -476,6 +557,59 @@ export default function KasaClient() {
           </div>
         )}
         </>
+      )}
+
+      {/* Ödeme Modal */}
+      {modalMasa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => !odemeYukleniyor && setModalMasa(null)} />
+          <div className="relative rounded-2xl p-6 w-full max-w-sm"
+            style={{ background: "var(--ast-card-bg)", border: "1px solid var(--ast-card-border)" }}>
+            <h2 className="text-lg font-black mb-1" style={{ color: "var(--ast-text1)" }}>
+              Masa {modalMasa} — Ödeme
+            </h2>
+            <p className="text-xs mb-5" style={{ color: "var(--ast-text3)" }}>
+              Toplam: ₺{gruplar.find((g) => g.masaNo === modalMasa)?.toplamTutar.toFixed(0)}
+            </p>
+
+            <p className="text-xs font-semibold mb-3" style={{ color: "var(--ast-text2)" }}>Ödeme Yöntemi</p>
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              {(Object.entries(YONTEM_ETIKET) as [OdemeYontemi, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setSeciliYontem(key)}
+                  className="py-3 px-4 rounded-xl text-sm font-semibold transition-all"
+                  style={{
+                    background: seciliYontem === key ? "var(--ast-nav-active-bg)" : "var(--ast-badge-bg)",
+                    border: `1px solid ${seciliYontem === key ? "var(--ast-gold)" : "var(--ast-divider)"}`,
+                    color: seciliYontem === key ? "var(--ast-gold)" : "var(--ast-text2)",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setModalMasa(null)}
+                disabled={odemeYukleniyor}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ background: "var(--ast-badge-bg)", color: "var(--ast-text2)", border: "1px solid var(--ast-divider)" }}
+              >
+                İptal
+              </button>
+              <button
+                onClick={odemeOnayla}
+                disabled={odemeYukleniyor}
+                className="flex-1 py-3 rounded-xl text-sm font-black transition-opacity hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #16a34a, #22c55e)", color: "#fff" }}
+              >
+                {odemeYukleniyor ? "..." : "✓ Onayla"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Günlük Arşiv Drawer */}
@@ -493,7 +627,7 @@ export default function KasaClient() {
                   <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
                 </svg>
                 <div>
-                  <p className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>Günlük Kasa Arşivi</p>
+                  <p className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>Kasa Arşivi</p>
                   <p className="text-[10px]" style={{ color: "var(--ast-text3)" }}>Son 24 saat · otomatik silinir</p>
                 </div>
               </div>
@@ -558,11 +692,11 @@ export default function KasaClient() {
                       style={{ borderBottom: "1px solid var(--ast-divider)" }}>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm" style={{ color: "var(--ast-text1)" }}>Masa {k.masaNo}</span>
-                        <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odemeZamani)}</span>
+                        <span className="text-[10px]" style={{ color: "var(--ast-text3)" }}>{saatFormat(k.odendiTarih ?? k.createdAt)}</span>
                       </div>
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                         style={{ background: "var(--ast-success-bg)", color: "var(--ast-success-text)" }}>
-                        Ödendi
+                        {k.odemeYontemi ? YONTEM_ETIKET[k.odemeYontemi as OdemeYontemi] ?? k.odemeYontemi : "Ödendi"}
                       </span>
                     </div>
                     <div className="px-3 py-2 space-y-1">
@@ -572,7 +706,7 @@ export default function KasaClient() {
                           <span style={{ color: "var(--ast-text3)" }}>₺{(u.fiyat * u.adet).toFixed(0)}</span>
                         </div>
                       ))}
-                      {k.notlar && <p className="text-[10px] pt-1" style={{ color: "var(--ast-warn-text)" }}>📝 {k.notlar}</p>}
+                      {k.not && <p className="text-[10px] pt-1" style={{ color: "var(--ast-warn-text)" }}>📝 {k.not}</p>}
                     </div>
                     <div className="px-3 py-2 flex justify-end" style={{ borderTop: "1px solid var(--ast-divider)" }}>
                       <span className="text-xs font-bold" style={{ color: "var(--ast-text1)" }}>₺{k.toplam.toFixed(0)}</span>

@@ -103,17 +103,38 @@ export default function Sepet({
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
         setBasarili(true);
         setSepet([]);
+      } else if (res.status === 429) {
+        const resetAt = data.resetAt ? new Date(data.resetAt) : null;
+        const kalan = resetAt ? Math.ceil((resetAt.getTime() - Date.now()) / 60000) : 15;
+        alert(
+          dil === "en"
+            ? `Too many orders. Please wait ${kalan} minute(s) and try again.`
+            : dil === "ru"
+            ? `Слишком много заказов. Подождите ${kalan} мин. и попробуйте снова.`
+            : `Çok fazla sipariş gönderildi. Lütfen ${kalan} dakika bekleyip tekrar deneyin.`
+        );
+      } else {
+        const msg = data.error ?? "";
+        alert(
+          dil === "en"
+            ? `Order could not be sent. ${msg}`
+            : dil === "ru"
+            ? `Не удалось отправить заказ. ${msg}`
+            : `Sipariş gönderilemedi. ${msg}`
+        );
       }
     } catch {
       alert(
         dil === "en"
-          ? "Order could not be sent. Please try again."
+          ? "Order could not be sent. Check your connection."
           : dil === "ru"
-          ? "Не удалось отправить заказ. Попробуйте снова."
-          : "Sipariş gönderilemedi. Tekrar deneyin."
+          ? "Не удалось отправить заказ. Проверьте соединение."
+          : "Sipariş gönderilemedi. Bağlantını kontrol et."
       );
     } finally {
       setGonderiyor(false);
