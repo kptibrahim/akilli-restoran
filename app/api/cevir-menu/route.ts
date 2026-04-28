@@ -4,6 +4,7 @@ import type { Kategori, Urun } from "@/lib/types";
 import { validateRestoranId } from "@/lib/restoran-dogrula";
 import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getIp } from "@/lib/get-ip";
+import { limitKontrol, kayitEkle } from "@/lib/ai-kullanim";
 
 type KategoriRow = Kategori & { sira: number };
 
@@ -25,6 +26,20 @@ export async function POST(req: NextRequest) {
     if (!restoran) {
       console.warn(`[cevir-menu] Geçersiz restoranId: ${restoranId} — IP: ${getIp(req)}`);
       return NextResponse.json({ error: "Restoran bulunamadı" }, { status: 404 });
+    }
+
+    // Paket kontrolü
+    const kullanim = await limitKontrol(restoranId, "ceviri");
+    if (!kullanim.izinVar) {
+      return NextResponse.json({
+        error: kullanim.limit === 0
+          ? "AI Çeviri bu pakette mevcut değil"
+          : "Aylık AI çeviri limitiniz doldu",
+        kullanildi: kullanim.kullanildi,
+        limit: kullanim.limit,
+        paket: kullanim.paket,
+        upgradeUrl: "/dashboard/abonelik",
+      }, { status: 402 });
     }
   }
 
@@ -79,6 +94,17 @@ export async function POST(req: NextRequest) {
           : urun.aciklama,
       })),
     }));
+
+    if (restoranId) {
+      const usage = res.usage as { input_tokens: number; output_tokens: number };
+      kayitEkle({
+        restoranId,
+        tip: "ceviri",
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        model: "haiku-4-5",
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ kategoriler: cevrilmis });
   } catch {

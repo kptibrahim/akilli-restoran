@@ -57,6 +57,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Restoran oluşturulamadı. Lütfen tekrar deneyin." }, { status: 500 });
     }
 
+    // Pilot aboneliği otomatik oluştur
+    await adminDb.from("Abonelik").insert({
+      id: crypto.randomUUID(),
+      restoranId: restoran.id,
+      paket: "profesyonel",
+      durum: "aktif",
+      notlar: "Pilot dönem - ücretsiz erişim",
+    });
+
     return NextResponse.json({ restoran }, { status: 201 });
   } catch (err) {
     console.error(err);

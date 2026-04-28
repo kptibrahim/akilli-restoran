@@ -1,4 +1,5 @@
 import { adminDb } from "@/lib/supabase-admin";
+import { getRestoranPaketi, PAKET_OZELLIKLERI } from "@/lib/paket-limitleri";
 
 export const PAKET_LIMITLER = {
   ucretsiz:    { chatbotMesaj: 0,     ceviriCagri: 0,      menuImport: 0   },
@@ -105,23 +106,30 @@ export async function limitKontrol(
   restoranId: string,
   tip: Tip
 ): Promise<{ izinVar: boolean; kullanildi: number; limit: number; paket: string }> {
-  const { data: restoran } = await adminDb
-    .from("Restoran")
-    .select("paket")
-    .eq("id", restoranId)
-    .single();
+  const paket = await getRestoranPaketi(restoranId);
+  const ozellikler = PAKET_OZELLIKLERI[paket];
 
-  const paket = (((restoran as { paket?: string } | null)?.paket) ?? "profesyonel") as Paket;
-  const limitler = PAKET_LIMITLER[paket] ?? PAKET_LIMITLER.profesyonel;
+  // Feature flag — AI özelliği bu pakette kapalıysa
+  const aiFlag: Record<Tip, boolean> = {
+    chatbot: ozellikler.aiChatbot,
+    ceviri:  ozellikler.aiCeviri,
+    import:  ozellikler.aiMenuImport,
+  };
+  if (!aiFlag[tip]) return { izinVar: false, kullanildi: 0, limit: 0, paket };
 
-  const alanAdi: Record<Tip, keyof typeof limitler> = {
+  const aylikLimit: Record<Tip, number> = {
+    chatbot: ozellikler.chatbotMesajAylik,
+    ceviri:  10000,
+    import:  20,
+  };
+  const limit = aylikLimit[tip];
+  if (limit === -1) return { izinVar: true, kullanildi: 0, limit: -1, paket };
+
+  const alanAdi: Record<Tip, string> = {
     chatbot: "chatbotMesaj",
     ceviri:  "ceviriCagri",
     import:  "menuImport",
   };
-  const limit = limitler[alanAdi[tip]];
-
-  if (limit === 0) return { izinVar: false, kullanildi: 0, limit: 0, paket };
 
   const ay = buAy();
   const { data: kullanim } = await adminDb

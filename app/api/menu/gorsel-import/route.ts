@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import { limitKontrol, kayitEkle } from "@/lib/ai-kullanim";
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,6 +21,20 @@ export async function POST(req: NextRequest) {
 
     if (!gorsel || !restoranId) {
       return NextResponse.json({ error: "Görsel ve restoranId gerekli" }, { status: 400 });
+    }
+
+    // Paket kontrolü
+    const kullanim = await limitKontrol(restoranId, "import");
+    if (!kullanim.izinVar) {
+      return NextResponse.json({
+        error: kullanim.limit === 0
+          ? "AI Menü Import bu pakette mevcut değil"
+          : "Aylık AI menü import limitiniz doldu",
+        kullanildi: kullanim.kullanildi,
+        limit: kullanim.limit,
+        paket: kullanim.paket,
+        upgradeUrl: "/dashboard/abonelik",
+      }, { status: 402 });
     }
 
     const izinliTipler = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -97,6 +112,15 @@ Kurallar:
     } catch {
       return NextResponse.json({ error: "Menü ayrıştırılamadı", ham: content.text }, { status: 500 });
     }
+
+    const usage = response.usage as { input_tokens: number; output_tokens: number };
+    kayitEkle({
+      restoranId,
+      tip: "import",
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      model: "sonnet-4-6",
+    }).catch(() => {});
 
     return NextResponse.json({ kategoriler: menuVerisi.kategoriler ?? [] });
   } catch (err) {

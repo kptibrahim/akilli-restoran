@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import Anthropic from "@anthropic-ai/sdk";
+import { limitKontrol, kayitEkle } from "@/lib/ai-kullanim";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,6 +11,20 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
     const { restoranId } = await req.json();
+
+    // Paket kontrolü
+    const kullanim = await limitKontrol(restoranId, "import");
+    if (!kullanim.izinVar) {
+      return NextResponse.json({
+        error: kullanim.limit === 0
+          ? "AI Menü Import bu pakette mevcut değil"
+          : "Aylık AI menü import limitiniz doldu",
+        kullanildi: kullanim.kullanildi,
+        limit: kullanim.limit,
+        paket: kullanim.paket,
+        upgradeUrl: "/dashboard/abonelik",
+      }, { status: 402 });
+    }
 
     // Kullanıcının bu restorana sahip olduğunu doğrula
     const { data: restoran } = await supabase
@@ -132,6 +147,15 @@ Kurallar:
         toplamUrun += urunler.length;
       }
     }
+
+    const usage = response.usage as { input_tokens: number; output_tokens: number };
+    kayitEkle({
+      restoranId,
+      tip: "import",
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      model: "sonnet-4-6",
+    }).catch(() => {});
 
     return NextResponse.json({
       basarili: true,

@@ -4,6 +4,7 @@ import { urunCevirisiOlustur } from "@/lib/translate";
 import { validateRestoranId } from "@/lib/restoran-dogrula";
 import { rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getIp } from "@/lib/get-ip";
+import { limitKontrol as paketLimitKontrol } from "@/lib/paket-limitleri";
 
 async function hedefDilleriGetir(restoranId: string): Promise<string[]> {
   const { data } = await adminDb
@@ -78,6 +79,23 @@ export async function POST(req: NextRequest) {
   }
 
   if (tip === "urun") {
+    // Ürün limiti kontrolü
+    const { count: mevcutUrunSayisi } = await adminDb
+      .from("Urun")
+      .select("Kategori!inner(restoranId)", { count: "exact", head: true })
+      .eq("Kategori.restoranId", restoranId);
+
+    const urunLimitSonuc = await paketLimitKontrol(restoranId, "urunLimiti", mevcutUrunSayisi ?? 0);
+    if (!urunLimitSonuc.izinVar) {
+      return NextResponse.json({
+        error: "Ürün limitiniz doldu",
+        kullanilan: urunLimitSonuc.kullanilan,
+        limit: urunLimitSonuc.limit,
+        upgradePaket: "baslangic",
+        upgradeUrl: "/dashboard/abonelik",
+      }, { status: 402 });
+    }
+
     const sira = typeof veri.sira === "number" ? veri.sira : 0;
     const id = crypto.randomUUID();
     const { data, error } = await adminDb

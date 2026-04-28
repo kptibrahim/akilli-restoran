@@ -22,8 +22,27 @@ model Restoran {
   siparisler     Siparis[]
   rezervasyonlar Rezervasyon[]
   odemeArsivler  OdemeArsiv[]
+  abonelik       Abonelik?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+}
+
+model Abonelik {
+  id             String    @id @default(uuid())
+  restoranId     String    @unique
+  paket          String    @default("profesyonel")
+  durum          String    @default("aktif")
+  baslangicTarih DateTime  @default(now())
+  bitisTarih     DateTime?
+  denemeBitis    DateTime?
+  iptalSebep     String?
+  notlar         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  restoran       Restoran  @relation(fields: [restoranId], references: [id], onDelete: Cascade)
+
+  @@index([restoranId, durum])
 }
 
 model Kategori {

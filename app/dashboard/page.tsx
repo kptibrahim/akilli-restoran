@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
+import { adminDb } from "@/lib/supabase-admin";
 
 function MenuIcon() {
   return (
@@ -43,11 +44,27 @@ export default async function DashboardPage() {
   const { data: restoran } = await supabase
     .from("Restoran").select("id, isim, slug, renk").eq("userId", user.id).single();
 
-  const { count: siparisSayisi } = await supabase
-    .from("Siparis").select("*", { count: "exact", head: true })
-    .eq("restoranId", restoran?.id ?? "").eq("durum", "bekliyor");
+  const buAyStr = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  })();
+
+  const [{ count: siparisSayisi }, { data: aiKullanim }] = await Promise.all([
+    supabase
+      .from("Siparis").select("*", { count: "exact", head: true })
+      .eq("restoranId", restoran?.id ?? "").eq("durum", "bekliyor"),
+    restoran
+      ? adminDb
+          .from("AiKullanim")
+          .select("chatbotMesaj")
+          .eq("restoranId", restoran.id)
+          .eq("ay", buAyStr)
+          .single()
+      : Promise.resolve({ data: null }),
+  ]);
 
   const bekleyen = siparisSayisi ?? 0;
+  const chatbotKullanilan = (aiKullanim as { chatbotMesaj?: number } | null)?.chatbotMesaj ?? 0;
 
   const kartlar = [
     { href: "/dashboard/menu-editor", Icon: MenuIcon, baslik: "Menü Editörü", aciklama: "Kategori ve ürünlerinizi yönetin." },
@@ -130,6 +147,35 @@ export default async function DashboardPage() {
               {bekleyen} yeni sipariş var!
             </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--ast-text3)" }}>Hemen görüntüle →</p>
+          </div>
+        </a>
+      )}
+
+      {/* Abonelik kartı */}
+      {restoran && (
+        <a
+          href="/dashboard/abonelik"
+          className="flex items-center gap-4 mb-7 p-4 rounded-2xl transition-all active:scale-[0.99]"
+          style={{
+            background: "var(--ast-card-bg)",
+            border: "1px solid var(--ast-card-border)",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+            textDecoration: "none",
+          }}
+        >
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0"
+            style={{ background: "linear-gradient(135deg, #C89434, #E8B84B)" }}
+          >
+            🚀
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm" style={{ color: "var(--ast-gold)", fontFamily: "inherit" }}>
+              Profesyonel AI Paketi (Pilot)
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--ast-text3)" }}>
+              Tüm AI özellikler aktif. Bu ay {chatbotKullanilan.toLocaleString("tr-TR")}/5.000 chatbot mesajı. Abonelik Yönetimi →
+            </p>
           </div>
         </a>
       )}
