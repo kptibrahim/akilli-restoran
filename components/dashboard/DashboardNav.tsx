@@ -10,7 +10,7 @@ type Restoran = { id: string; isim: string; slug: string; renk: string } | null;
 type GarsonCagri = { id: string; masaNo: string; durum: "bekliyor" | "geliyor"; tip: "garson" | "hesap"; olusturuldu: string };
 
 const ROL_LINKLER: Record<Rol, Set<string>> = {
-  yonetici: new Set(["/dashboard", "/dashboard/menu-editor", "/dashboard/siparisler", "/dashboard/kasa", "/dashboard/qr-kodlar", "/dashboard/ayarlar", "/dashboard/analitik"]),
+  yonetici: new Set(["/dashboard", "/dashboard/menu-editor", "/dashboard/siparisler", "/dashboard/kasa", "/dashboard/qr-kodlar", "/dashboard/ayarlar", "/dashboard/analitik", "/dashboard/abonelik"]),
   kasiyer: new Set(["/dashboard/siparisler", "/dashboard/kasa"]),
   mutfak: new Set(["/dashboard/siparisler"]),
 };
@@ -71,6 +71,14 @@ function GearIcon() {
     </svg>
   );
 }
+function AbonelikIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+    </svg>
+  );
+}
 function AnalitikIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
@@ -118,6 +126,7 @@ const LINKLER = [
   { href: "/dashboard/analitik", label: "Analitik", Icon: AnalitikIcon },
   { href: "/dashboard/qr-kodlar", label: "QR Kodlar", Icon: QrIcon },
   { href: "/dashboard/ayarlar", label: "Ayarlar", Icon: GearIcon },
+  { href: "/dashboard/abonelik", label: "Abonelik", Icon: AbonelikIcon },
 ];
 
 export default function DashboardNav({
