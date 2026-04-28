@@ -4,9 +4,10 @@ import { adminDb } from "@/lib/supabase-admin";
 // Vercel Cron tarafından gece 00:00 UTC (Türkiye 03:00) tetiklenir.
 // Siparis ve OdemeArsiv 24 saat, AnalitikKayit ve ChatLog 30 gün sonra silinir.
 export async function GET(req: NextRequest) {
-  // CRON_SECRET kontrolü — Vercel otomatik ekler; .env'de tanımlıysa zorunlu
+  // CRON_SECRET her zaman zorunlu — tanımlı değilse de erişimi engelle
+  const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
   }
 
